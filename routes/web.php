@@ -5,7 +5,7 @@ use App\Http\Controllers\ProductController;
 use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\UnitController;
-
+use App\Http\Controllers\StockDocumentController;
 
 use App\Models\Product;
 use App\Models\Supplier;
@@ -21,6 +21,15 @@ Route::middleware('auth')->group(function () {
     Route::resource('suppliers', SupplierController::class);
     Route::resource('categories', CategoryController::class);
     Route::resource('units', UnitController::class);
+
+    Route::get('/stock-documents', [StockDocumentController::class, 'index'])->name('stock-documents.index');
+    Route::get('/stock-documents/create', [StockDocumentController::class, 'create'])->name('stock-documents.create');
+    Route::post('/stock-documents', [StockDocumentController::class, 'store'])->name('stock-documents.store');
+    Route::get('/stock-documents/{stockDocument}', [StockDocumentController::class, 'show'])->name('stock-documents.show');
+    Route::get('/stock-documents/{stockDocument}/edit', [StockDocumentController::class, 'edit'])->name('stock-documents.edit');
+    Route::put('/stock-documents/{stockDocument}', [StockDocumentController::class, 'update'])->name('stock-documents.update');
+    Route::delete('/stock-documents/{stockDocument}', [StockDocumentController::class, 'destroy'])->name('stock-documents.destroy');
+
 
     Route::get('/dashboard', function () {
          // ดึงข้อมูลสรุป
