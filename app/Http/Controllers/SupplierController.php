@@ -56,7 +56,7 @@ class SupplierController extends Controller
     /**
      * Show the form for editing the specified resource.
      */
-    public function edit(string $id)
+    public function edit(Supplier $supplier)
     {
         return view('suppliers.edit', compact('supplier'));
     }
