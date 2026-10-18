@@ -1,12 +1,7 @@
-<!DOCTYPE html>
-<html lang="th">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>เพิ่มสินค้าใหม่ - Mini ERP</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-</head>
-<body class="bg-gray-100 p-8">
+@extends('layouts.app')
+
+@section('title', 'เพิ่มสินค้า')
+@section('content')
     <div class="max-w-4xl mx-auto bg-white p-8 rounded-lg shadow-md">
         <div class="flex justify-between items-center mb-6">
             <h1 class="text-2xl font-bold text-gray-800">เพิ่มสินค้าใหม่</h1>
@@ -125,5 +120,4 @@
             </div>
         </form>
     </div>
-</body>
-</html>
+@endsection
