@@ -24,6 +24,7 @@
                     <th class="p-4">SKU</th>
                     <th class="p-4">ชื่อสินค้า</th>
                     <th class="p-4">หมวดหมู่</th>
+                    <th class="p-4">ราคาต้นทุ่น</th>
                     <th class="p-4">ราคาขาย</th>
                     <th class="p-4">สต็อก</th>
                     <th class="p-4 text-center">จัดการ</th>
@@ -45,7 +46,16 @@
                         <td class="p-4 text-gray-600">{{ $product->sku }}</td>
                         <td class="p-4 font-medium text-gray-800">{{ $product->name }}</td>
                         <td class="p-4 text-gray-600">{{ $product->category_name ?? '-' }}</td>
-                        <td class="p-4 text-gray-800">฿{{ number_format($product->price, 2) }}</td>
+                        <td class="p-4 text-gray-800">
+                            <span>
+                              ฿{{ number_format($product->cost, 2) }}
+                            </span>
+                              {{ $product->unit_name ?? '' }}
+                        </td>
+                        <td class="p-4 text-gray-800">
+                            <span> ฿{{ number_format($product->price, 2) }}</span>
+                         {{ $product->unit_name ?? '' }}
+                        </td>
                         <td class="p-4">
                             <span class="{{ $product->stock < 10 ? 'text-red-600 font-bold' : 'text-gray-800' }}">
                                 {{ $product->stock }}
