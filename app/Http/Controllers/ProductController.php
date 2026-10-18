@@ -40,7 +40,7 @@ class ProductController extends Controller
             )
             // เรียงลำดับและดึงข้อมูล
             ->latest('products.created_at')
-            ->get();
+            ->paginate(1);
 
             return view('products.index', compact('products'));
    }
