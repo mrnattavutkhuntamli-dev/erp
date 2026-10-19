@@ -1,66 +1,145 @@
 <?php
+
 use App\Http\Controllers\BrandController;
 use App\Http\Controllers\CarBrandController;
 use App\Http\Controllers\CategoryController;
+use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\SaleController;
 use App\Http\Controllers\StockDocumentController;
 use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\UnitController;
-use App\Http\Controllers\SaleController;
-use App\Http\Controllers\CustomerController;
+// use App\Http\Controllers\ReportController;
+use App\Http\Controllers\TwoFactorController;
+use App\Http\Controllers\TwoFactorChallengeController;
+use App\Http\Controllers\UserController;
+
 use App\Models\Product;
 use App\Models\Supplier;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
     return view('welcome');
 });
 
-Route::middleware('auth')->group(function () {
-    Route::resource('products', ProductController::class);
-    Route::resource('suppliers', SupplierController::class);
-    Route::resource('categories', CategoryController::class);
-    Route::resource('units', UnitController::class);
+// ==========================================
+// ✅ ย้าย Routes สำหรับ 2FA Challenge ออกมาข้างนอก
+// เพื่อให้คนที่ยังไม่ยืนยัน 2FA สามารถเข้าถึงหน้านี้ได้
+// ==========================================
+Route::middleware(['auth'])->group(function () {
+    Route::get('/2fa-challenge', [TwoFactorChallengeController::class, 'show'])->name('2fa.challenge');
+    Route::post('/2fa-verify', [TwoFactorChallengeController::class, 'verify'])->name('2fa.verify');
+});
 
-    Route::get('/stock-documents', [StockDocumentController::class, 'index'])->name('stock-documents.index');
-    Route::get('/stock-documents/create', [StockDocumentController::class, 'create'])->name('stock-documents.create');
-    Route::post('/stock-documents', [StockDocumentController::class, 'store'])->name('stock-documents.store');
-    Route::get('/stock-documents/{stockDocument}', [StockDocumentController::class, 'show'])->name('stock-documents.show');
-    Route::get('/stock-documents/{stockDocument}/edit', [StockDocumentController::class, 'edit'])->name('stock-documents.edit');
-    Route::put('/stock-documents/{stockDocument}', [StockDocumentController::class, 'update'])->name('stock-documents.update');
-    Route::delete('/stock-documents/{stockDocument}', [StockDocumentController::class, 'destroy'])->name('stock-documents.destroy');
 
-    Route::get('/sales', [SaleController::class, 'index'])->name('sales.index');
-    Route::post('/sales', [SaleController::class, 'store'])->name('sales.store');
-    Route::get('/sales/{sale}', [SaleController::class, 'show'])->name('sales.show');
-    Route::delete('/sales/{sale}', [SaleController::class, 'destroy'])->name('sales.destroy');
-    Route::get('/sales-history', [SaleController::class, 'history'])->name('sales.history');
+// ==========================================
+// กลุ่ม Routes ที่ต้องล็อกอิน + ยืนยัน 2FA แล้วเท่านั้น
+// ==========================================
+Route::middleware(['auth', '2fa'])->group(function () {
 
-    Route::resource('brands', BrandController::class);
-    Route::resource('car-brands', CarBrandController::class);
-    Route::post('/car-models', [App\Http\Controllers\CarBrandController::class, 'storeCarModel'])->name('car-models.store');
-    Route::put('/car-models/{id}', [App\Http\Controllers\CarBrandController::class, 'updateCarModel'])->name('car-models.update');
-    Route::delete('/car-models/{id}', [App\Http\Controllers\CarBrandController::class, 'destroyCarModel'])->name('car-models.destroy');
-    Route::resource('customers', CustomerController::class);
-
+    // 1. หน้า Dashboard
     Route::get('/dashboard', function () {
-        // ดึงข้อมูลสรุป
-        $totalProducts  = Product::count();
-        $totalSuppliers = Supplier::count();
-
-        // คำนวณมูลค่าสต็อกรวม (ราคาขาย x จำนวนสต็อก)
-        $totalStockValue = Product::sum(DB::raw('price * stock'));
-
-        // ดึงสินค้าที่สต็อกต่ำกว่า 10 ชิ้น (แจ้งเตือน)
+        $totalProducts    = Product::count();
+        $totalSuppliers   = Supplier::count();
+        $totalStockValue  = Product::sum(DB::raw('price * stock'));
         $lowStockProducts = Product::where('stock', '<', 10)->where('is_active', true)->get();
 
         return view('dashboard', compact('totalProducts', 'totalSuppliers', 'totalStockValue', 'lowStockProducts'));
     })->name('dashboard');
 
+    // 2. หน้าสำหรับ Admin เท่านั้น
+    Route::middleware('permission:manage-users')->group(function () {
+        // อนาคต: Route สำหรับจัดการ User, Role, Permission
+        Route::resource('users', UserController::class);
+    });
+
+    // 3. หน้าจัดการข้อมูลหลัก
+    Route::middleware('permission:manage-master-data')->group(function () {
+        Route::resource('categories', CategoryController::class);
+        Route::resource('brands', BrandController::class);
+        Route::resource('car-brands', CarBrandController::class);
+        Route::resource('units', UnitController::class);
+        Route::post('/car-models', [CarBrandController::class, 'storeCarModel'])->name('car-models.store');
+        Route::put('/car-models/{id}', [CarBrandController::class, 'updateCarModel'])->name('car-models.update');
+        Route::delete('/car-models/{id}', [CarBrandController::class, 'destroyCarModel'])->name('car-models.destroy');
+    });
+
+    // 4. หน้าสินค้า
+    Route::middleware('permission:view-products')->group(function () {
+        Route::get('/products', [ProductController::class, 'index'])->name('products.index');
+        Route::get('/products/{product}', [ProductController::class, 'show'])->name('products.show');
+    });
+
+    Route::middleware('permission:create-products')->group(function () {
+        Route::get('/products/create', [ProductController::class, 'create'])->name('products.create');
+        Route::post('/products', [ProductController::class, 'store'])->name('products.store');
+    });
+    Route::middleware('permission:edit-products')->group(function () {
+        Route::get('/products/{product}/edit', [ProductController::class, 'edit'])->name('products.edit');
+        Route::put('/products/{product}', [ProductController::class, 'update'])->name('products.update');
+    });
+    Route::middleware('permission:delete-products')->group(function () {
+        Route::delete('/products/{product}', [ProductController::class, 'destroy'])->name('products.destroy');
+    });
+
+    // 5. หน้าคลังสินค้า
+    Route::middleware('permission:view-stock')->group(function () {
+        Route::get('/stock-documents', [StockDocumentController::class, 'index'])->name('stock-documents.index');
+        Route::get('/stock-documents/{stockDocument}', [StockDocumentController::class, 'show'])->name('stock-documents.show');
+    });
+
+    Route::middleware('permission:create-stock-document')->group(function () {
+        Route::get('/stock-documents/create', [StockDocumentController::class, 'create'])->name('stock-documents.create');
+        Route::post('/stock-documents', [StockDocumentController::class, 'store'])->name('stock-documents.store');
+        Route::get('/stock-documents/{stockDocument}/edit', [StockDocumentController::class, 'edit'])->name('stock-documents.edit');
+        Route::put('/stock-documents/{stockDocument}', [StockDocumentController::class, 'update'])->name('stock-documents.update');
+    });
+
+    Route::middleware('permission:void-stock-document')->group(function () {
+        Route::delete('/stock-documents/{stockDocument}', [StockDocumentController::class, 'destroy'])->name('stock-documents.destroy');
+    });
+
+    // 6. หน้าขาย POS
+    Route::middleware('permission:create-sale')->group(function () {
+        Route::get('/sales', [SaleController::class, 'index'])->name('sales.index');
+        Route::post('/sales', [SaleController::class, 'store'])->name('sales.store');
+        Route::get('/sales/{sale}', [SaleController::class, 'show'])->name('sales.show');
+    });
+
+    Route::middleware('permission:void-sale')->group(function () {
+        Route::delete('/sales/{sale}', [SaleController::class, 'destroy'])->name('sales.destroy');
+    });
+
+    Route::middleware('permission:view-sales')->group(function () {
+        Route::get('/sales-history', [SaleController::class, 'history'])->name('sales.history');
+    });
+
+    // 7. หน้าจัดการคู่ค้า
+    Route::middleware('permission:manage-customers')->group(function () {
+        Route::resource('customers', CustomerController::class);
+    });
+
+    Route::middleware('permission:manage-suppliers')->group(function () {
+        Route::resource('suppliers', SupplierController::class);
+    });
+
+    // 8. หน้ารายงาน (ยังไม่เปิดใช้งาน)
+    // Route::middleware('permission:view-reports')->group(function () {
+    //     Route::get('/reports', [ReportController::class, 'index'])->name('reports.index');
+    // });
+
+    // 9. หน้า Profile (ทุกคน)
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+
+    // 10. หน้าตั้งค่า 2FA (สำหรับคนที่ล็อกอินแล้วและผ่าน 2FA แล้ว)
+    Route::get('/two-factor', [TwoFactorController::class, 'show'])->name('two-factor.show');
+    Route::post('/two-factor/enable', [TwoFactorController::class, 'enable'])->name('two-factor.enable');
+    Route::post('/two-factor/disable', [TwoFactorController::class, 'disable'])->name('two-factor.disable');
+
 });
 
 require __DIR__ . '/auth.php';

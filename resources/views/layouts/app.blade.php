@@ -97,28 +97,52 @@
         <!-- เมนู -->
         <nav class="nav-scroll flex-1 overflow-y-auto px-3 py-4 space-y-6">
             @foreach ($navGroups as $groupName => $items)
-                <div>
-                    <div class="px-3 mb-2 text-xs font-medium text-slate-500">{{ $groupName }}</div>
-                    <div class="space-y-0.5">
-                        @foreach ($items as [$label, $routeName, $pattern, $icon])
-                            @php $active = request()->routeIs($pattern); @endphp
-                            <a href="{{ route($routeName) }}"
-                               @if($active) aria-current="page" @endif
-                               class="group relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors
-                                      {{ $active ? 'bg-white/10 text-white font-medium' : 'hover:bg-white/5 hover:text-white' }}
-                                      focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400">
-                                @if($active)
-                                    <span class="absolute left-0 top-1.5 bottom-1.5 w-1 rounded-r bg-amber-500"></span>
+                @php
+                    // ✅ 1. นับจำนวนเมนูในกลุ่มนี้ที่ผู้ใช้มีสิทธิ์เห็น
+                    $visibleCount = 0;
+                    foreach ($items as $item) {
+                        $permission = $item[4] ?? null;
+                        if (!$permission || auth()->user()->can($permission)) {
+                            $visibleCount++;
+                        }
+                    }
+                @endphp
+
+                {{-- ✅ 2. แสดงหัวข้อกลุ่ม ก็ต่อเมื่อมีเมนูให้เห็นอย่างน้อย 1 อัน --}}
+                @if ($visibleCount > 0)
+                    <div>
+                        <div class="px-3 mb-2 text-xs font-medium text-slate-500">{{ $groupName }}</div>
+                        <div class="space-y-0.5">
+                            @foreach ($items as $item)
+                                @php
+                                    $label      = $item[0];
+                                    $routeName  = $item[1];
+                                    $pattern    = $item[2];
+                                    $icon       = $item[3];
+                                    $permission = $item[4] ?? null;
+                                @endphp
+
+                                @if(!$permission || auth()->user()->can($permission))
+                                    @php $active = request()->routeIs($pattern); @endphp
+                                    <a href="{{ route($routeName) }}"
+                                       @if($active) aria-current="page" @endif
+                                       class="group relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors
+                                              {{ $active ? 'bg-white/10 text-white font-medium' : 'hover:bg-white/5 hover:text-white' }}
+                                              focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400">
+                                        @if($active)
+                                            <span class="absolute left-0 top-1.5 bottom-1.5 w-1 rounded-r bg-amber-500"></span>
+                                        @endif
+                                        <svg class="h-5 w-5 flex-shrink-0 {{ $active ? 'text-amber-400' : 'text-slate-400 group-hover:text-slate-200' }}"
+                                             fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="{{ $icon }}"/>
+                                        </svg>
+                                        <span class="truncate">{{ $label }}</span>
+                                    </a>
                                 @endif
-                                <svg class="h-5 w-5 flex-shrink-0 {{ $active ? 'text-amber-400' : 'text-slate-400 group-hover:text-slate-200' }}"
-                                     fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="{{ $icon }}"/>
-                                </svg>
-                                <span class="truncate">{{ $label }}</span>
-                            </a>
-                        @endforeach
+                            @endforeach
+                        </div>
                     </div>
-                </div>
+                @endif
             @endforeach
         </nav>
 

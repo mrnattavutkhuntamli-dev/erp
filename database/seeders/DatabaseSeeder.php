@@ -31,6 +31,7 @@ class DatabaseSeeder extends Seeder
             CarBrandSeeder::class,
             CarModelSeeder::class,
             ProductSeeder::class,
+            RoleAndPermissionSeeder::class,
         ]);
     }
 }

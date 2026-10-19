@@ -1,5 +1,4 @@
 <?php
-
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
@@ -27,6 +26,9 @@ class AuthenticatedSessionController extends Controller
         $request->authenticate();
 
         $request->session()->regenerate();
+        if (auth()->user()->google2fa_enabled) {
+            return redirect()->route('2fa.challenge');
+        }
 
         return redirect()->intended(route('dashboard', absolute: false));
     }
