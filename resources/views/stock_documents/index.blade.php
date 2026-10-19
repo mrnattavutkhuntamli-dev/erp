@@ -52,7 +52,7 @@
                             @if ($doc->type == 'in')
                                 {{ $doc->supplier->name ?? '-' }}
                             @else
-                                {{ $doc->receiver_name ?? '-' }}
+                                 {{ $doc->customer->name ?? $doc->receiver_name ?? '-' }}
                             @endif
                         </td>
                         <td class="p-4 text-gray-600">{{ $doc->user->name }}</td>

@@ -49,8 +49,14 @@
                             </select>
                         @else
                             <!-- ถ้าเป็นเบิกออก ใช้ช่องพิมพ์ชื่อผู้รับ (เพราะยังไม่มีระบบ Customer) -->
-                            <input type="text" name="receiver_name" value="{{ old('receiver_name') }}"
-                                class="w-full border p-2 rounded" placeholder="ระบุชื่อลูกค้า/ช่าง...">
+                            <select name="customer_id" class="w-full border p-2 rounded">
+                                <option value="">-- เลือกลูกค้า (หรือเว้นว่างถ้าเป็นลูกค้าทั่วไป) --</option>
+                                @foreach($customers as $customer)
+                                    <option value="{{ $customer->id }}" {{ old('customer_id') == $customer->id ? 'selected' : '' }}>
+                                        {{ $customer->name }} {{ $customer->license_plate ? '('.$customer->license_plate.')' : '' }}
+                                    </option>
+                                @endforeach
+                            </select>
                         @endif
                 </div>
                 <div>

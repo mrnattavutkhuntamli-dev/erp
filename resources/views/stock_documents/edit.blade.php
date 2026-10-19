@@ -26,23 +26,36 @@
                     <label class="block text-gray-700 font-medium mb-2">วันที่ทำรายการ <span class="text-red-500">*</span></label>
                     <input type="date" name="date" value="{{ old('date', $stockDocument->date) }}" required class="w-full border p-2 rounded">
                 </div>
+
+                <!-- แก้ไขส่วนผู้รับ/ผู้ส่ง -->
                 <div>
-                    <label class="block text-gray-700 font-medium mb-2">ผู้รับ/ผู้ส่ง</label>
-                    <input type="text" name="receiver_name" value="{{ old('receiver_name', $stockDocument->receiver_name) }}" class="w-full border p-2 rounded">
+                    <label class="block text-gray-700 font-medium mb-2">
+                        {{ $stockDocument->type == 'in' ? 'ผู้ส่งของ (Supplier)' : 'ผู้รับของ (ลูกค้า)' }}
+                    </label>
+
+                    @if($stockDocument->type == 'in')
+                        <!-- ถ้าเป็นใบรับเข้า: เลือกซัพพลายเออร์ -->
+                        <select name="supplier_id" class="w-full border p-2 rounded">
+                            <option value="">-- เลือกซัพพลายเออร์ --</option>
+                            @foreach($suppliers as $supplier)
+                                <option value="{{ $supplier->id }}" {{ old('supplier_id', $stockDocument->supplier_id) == $supplier->id ? 'selected' : '' }}>
+                                    {{ $supplier->name }}
+                                </option>
+                            @endforeach
+                        </select>
+                    @else
+                        <!-- ถ้าเป็นใบเบิกออก: เลือกลูกค้า -->
+                        <select name="customer_id" class="w-full border p-2 rounded">
+                            <option value="">-- เลือกลูกค้า --</option>
+                            @foreach($customers as $customer)
+                                <option value="{{ $customer->id }}" {{ old('customer_id', $stockDocument->customer_id) == $customer->id ? 'selected' : '' }}>
+                                    {{ $customer->name }} {{ $customer->license_plate ? '('.$customer->license_plate.')' : '' }}
+                                </option>
+                            @endforeach
+                        </select>
+                    @endif
                 </div>
-                @if($stockDocument->type == 'in')
-                <div class="md:col-span-2">
-                    <label class="block text-gray-700 font-medium mb-2">ซัพพลายเออร์</label>
-                    <select name="supplier_id" class="w-full border p-2 rounded">
-                        <option value="">-- เลือกซัพพลายเออร์ --</option>
-                        @foreach($suppliers as $supplier)
-                            <option value="{{ $supplier->id }}" {{ old('supplier_id', $stockDocument->supplier_id) == $supplier->id ? 'selected' : '' }}>
-                                {{ $supplier->name }}
-                            </option>
-                        @endforeach
-                    </select>
-                </div>
-                @endif
+
                 <div class="md:col-span-2">
                     <label class="block text-gray-700 font-medium mb-2">หมายเหตุ</label>
                     <textarea name="note" rows="3" class="w-full border p-2 rounded">{{ old('note', $stockDocument->note) }}</textarea>

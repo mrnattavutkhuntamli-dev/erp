@@ -40,7 +40,7 @@
                         @if ($stockDocument->type == 'in')
                             {{ $stockDocument->supplier->name ?? '-' }}
                         @else
-                            {{ $stockDocument->receiver_name ?? '-' }}
+                            {{ $stockDocument->customer->name ?? $stockDocument->receiver_name ?? '-' }}
                         @endif
                     </p>
                 </div>

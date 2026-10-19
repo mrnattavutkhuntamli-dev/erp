@@ -16,6 +16,7 @@ class StockDocument extends Model
         'note',
         'status', // <-- เพิ่มอันนี้
         'user_id',
+        'customer_id',
     ];
     public function items()
     {
@@ -28,5 +29,9 @@ class StockDocument extends Model
     public function supplier()
     {
         return $this->belongsTo(Supplier::class);
+    }
+    public function customer()
+    {
+        return $this->belongsTo(Customer::class);
     }
 }

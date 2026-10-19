@@ -11,13 +11,13 @@ class StockDocumentController extends Controller
 {
     public function index()
     {
-        $documents = StockDocument::with(['user', 'supplier'])->latest()->paginate(15);
+        $documents = StockDocument::with(['user', 'supplier', 'customer'])->latest()->paginate(15);
         return view('stock_documents.index', compact('documents'));
     }
 
     public function show(StockDocument $stockDocument)
     {
-         $stockDocument->load(['items.product', 'supplier', 'user']);
+         $stockDocument->load(['items.product', 'supplier', 'user' , 'customer']);
         return view('stock_documents.show', compact('stockDocument'));
     }
 
@@ -26,9 +26,10 @@ class StockDocumentController extends Controller
         // ดึงสินค้าที่เปิดใช้งานอยู่มาให้เลือก
         $products  = Product::where('is_active', true)->orderBy('name')->get();
         $suppliers = Supplier::all();
+        $customers = \App\Models\Customer::where('is_active', true)->orderBy('name')->get();
         //รีบค่า type จาก url
         $type = $request->query('type', 'in');
-        return view('stock_documents.create', compact('products', 'suppliers', 'type'));
+        return view('stock_documents.create', compact('products', 'suppliers', 'customers', 'type'));
     }
 
     public function store(Request $request)
@@ -38,6 +39,7 @@ class StockDocumentController extends Controller
             'date'               => 'required|date',
             'receiver_name'      => 'nullable|string|max:255',
             'supplier_id'        => 'nullable|exists:suppliers,id',
+            'customer_id' => 'nullable|exists:customers,id',
             'note'               => 'nullable|string',
             // ตรวจสอบรายการสินค้า (ต้องมีอย่างน้อย 1 รายการ)
             'items'              => 'required|array|min:1',
@@ -51,12 +53,14 @@ class StockDocumentController extends Controller
                 $dateStr    = date('Ymd'); // ใช้จากวันที่เอกสาร
                 $countToday = StockDocument::whereDate('created_at', today())->count() + 1;
                 $docNo      = $prefix . '-' . $dateStr . '-' . str_pad($countToday, 4, '0', STR_PAD_LEFT);
+
                 $document   = StockDocument::create([
                     'doc_no'        => $docNo,
                     'type'          => $validated['type'],
                     'date'          => $validated['date'],
                     'receiver_name' => $validated['receiver_name'] ?? null,
                     'supplier_id'   => $validated['supplier_id'] ?? null,
+                    'customer_id'   => $validated['customer_id'] ?? null,
                     'note'          => $validated['note'] ?? null,
                     'user_id'       => auth()->id(), // พนักงานที่ล็อกอินอยู่
                 ]);
@@ -103,7 +107,8 @@ class StockDocumentController extends Controller
         }
 
         $suppliers = Supplier::all();
-        return view('stock_documents.edit', compact('stockDocument', 'suppliers'));
+        $customers = \App\Models\Customer::where('is_active', true)->orderBy('name')->get();
+        return view('stock_documents.edit', compact('stockDocument', 'suppliers', 'customers'));
     }
 
     public function update(Request $request, StockDocument $stockDocument)
@@ -116,6 +121,7 @@ class StockDocumentController extends Controller
             'date'          => 'required|date',
             'receiver_name' => 'nullable|string|max:255',
             'supplier_id'   => 'nullable|exists:suppliers,id',
+            'customer_id' => 'nullable|exists:customers,id',
             'note'          => 'nullable|string',
         ]);
 
