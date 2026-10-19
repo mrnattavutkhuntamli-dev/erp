@@ -7,6 +7,7 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\StockDocumentController;
 use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\UnitController;
+use App\Http\Controllers\SaleController;
 use App\Http\Controllers\CustomerController;
 use App\Models\Product;
 use App\Models\Supplier;
@@ -29,6 +30,12 @@ Route::middleware('auth')->group(function () {
     Route::get('/stock-documents/{stockDocument}/edit', [StockDocumentController::class, 'edit'])->name('stock-documents.edit');
     Route::put('/stock-documents/{stockDocument}', [StockDocumentController::class, 'update'])->name('stock-documents.update');
     Route::delete('/stock-documents/{stockDocument}', [StockDocumentController::class, 'destroy'])->name('stock-documents.destroy');
+
+    Route::get('/sales', [SaleController::class, 'index'])->name('sales.index');
+    Route::post('/sales', [SaleController::class, 'store'])->name('sales.store');
+    Route::get('/sales/{sale}', [SaleController::class, 'show'])->name('sales.show');
+    Route::delete('/sales/{sale}', [SaleController::class, 'destroy'])->name('sales.destroy');
+    Route::get('/sales-history', [SaleController::class, 'history'])->name('sales.history');
 
     Route::resource('brands', BrandController::class);
     Route::resource('car-brands', CarBrandController::class);
