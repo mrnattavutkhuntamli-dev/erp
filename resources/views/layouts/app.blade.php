@@ -30,6 +30,7 @@
             <a href="{{ route('suppliers.index') }}" class="block px-4 py-2 rounded hover:bg-gray-800 {{ request()->routeIs('suppliers.*') ? 'bg-gray-800 font-semibold' : '' }}">🏢 ซัพพลายเออร์</a>
             <a href="{{ route('units.index') }}" class="block px-4 py-2 rounded hover:bg-gray-800 {{ request()->routeIs('units.*') ? 'bg-gray-800 font-semibold' : '' }}">⚖️ หน่วยนับ</a>
             <a href="{{ route('stock-documents.index') }}" class="block px-4 py-2 rounded hover:bg-gray-800 {{ request()->routeIs('stock-documents.*') ? 'bg-gray-800 font-semibold' : '' }}">📄 ใบรับ/ใบเบิกสินค้า</a>
+        <a href="{{ route('customers.index') }}" class="block px-4 py-2 rounded hover:bg-gray-800 {{ request()->routeIs('customers.*') ? 'bg-gray-800 font-semibold' : '' }}">👥 ลูกค้า (Customers)</a>
         </nav>
         <div class="p-4 border-t border-gray-800">
             <div class="text-sm text-gray-400 mb-2">ล็อกอินในชื่อ: <br><span class="text-white">{{ Auth::user()->name }}</span></div>

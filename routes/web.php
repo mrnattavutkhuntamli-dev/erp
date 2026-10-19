@@ -1,5 +1,4 @@
 <?php
-
 use App\Http\Controllers\BrandController;
 use App\Http\Controllers\CarBrandController;
 use App\Http\Controllers\CategoryController;
@@ -8,6 +7,7 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\StockDocumentController;
 use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\UnitController;
+use App\Http\Controllers\CustomerController;
 use App\Models\Product;
 use App\Models\Supplier;
 use Illuminate\Support\Facades\Route;
@@ -30,13 +30,12 @@ Route::middleware('auth')->group(function () {
     Route::put('/stock-documents/{stockDocument}', [StockDocumentController::class, 'update'])->name('stock-documents.update');
     Route::delete('/stock-documents/{stockDocument}', [StockDocumentController::class, 'destroy'])->name('stock-documents.destroy');
 
-
     Route::resource('brands', BrandController::class);
     Route::resource('car-brands', CarBrandController::class);
     Route::post('/car-models', [App\Http\Controllers\CarBrandController::class, 'storeCarModel'])->name('car-models.store');
-Route::put('/car-models/{id}', [App\Http\Controllers\CarBrandController::class, 'updateCarModel'])->name('car-models.update');
-Route::delete('/car-models/{id}', [App\Http\Controllers\CarBrandController::class, 'destroyCarModel'])->name('car-models.destroy');
-
+    Route::put('/car-models/{id}', [App\Http\Controllers\CarBrandController::class, 'updateCarModel'])->name('car-models.update');
+    Route::delete('/car-models/{id}', [App\Http\Controllers\CarBrandController::class, 'destroyCarModel'])->name('car-models.destroy');
+    Route::resource('customers', CustomerController::class);
 
     Route::get('/dashboard', function () {
         // ดึงข้อมูลสรุป
