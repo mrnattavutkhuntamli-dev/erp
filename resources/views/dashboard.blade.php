@@ -4,14 +4,40 @@
 
 {{-- ปุ่มลัดบน header --}}
 @section('header_actions')
-    <a href="{{ route('stock-documents.index') }}"
-       class="hidden sm:inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors">
-        ใบรับ/ใบเบิกสินค้า
-    </a>
     <a href="{{ route('products.index') }}"
        class="inline-flex items-center gap-2 rounded-lg bg-ink-900 px-3.5 py-2 text-sm font-medium text-white hover:bg-ink-800 transition-colors">
         จัดการสินค้า
     </a>
+    <a href="{{ route('stock-documents.index') }}"
+       class="hidden sm:inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors">
+        ใบรับ/ใบเบิกสินค้า
+    </a>
+
+    <a href="{{ route('categories.index') }}"
+       class="hidden sm:inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors">
+        จัดการหมวดหมู่
+    </a>
+    <a href="{{ route('brands.index') }}"
+       class="inline-flex items-center gap-2 rounded-lg bg-ink-900 px-3.5 py-2 text-sm font-medium text-white hover:bg-ink-800 transition-colors">
+        จัดการยี่ห้ออะไหล่
+    </a>
+     <a href="{{ route('categories.index') }}"
+       class="hidden sm:inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors">
+        จัดการยี่ห้อ/รุ่นรถ
+    </a>
+    <a href="{{ route('brands.index') }}"
+       class="inline-flex items-center gap-2 rounded-lg bg-ink-900 px-3.5 py-2 text-sm font-medium text-white hover:bg-ink-800 transition-colors">
+        จัดการหน่วยนับ
+    </a>
+    <a href="{{ route('categories.index') }}"
+       class="hidden sm:inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors">
+        จัดการลูกค้า
+    </a>
+    <a href="{{ route('brands.index') }}"
+       class="inline-flex items-center gap-2 rounded-lg bg-ink-900 px-3.5 py-2 text-sm font-medium text-white hover:bg-ink-800 transition-colors">
+        จัดการซัพพลายเออร์
+    </a>
+
 @endsection
 
 @section('content')
