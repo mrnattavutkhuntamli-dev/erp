@@ -1,15 +1,15 @@
 <?php
 
-use App\Http\Controllers\ProfileController;
-use App\Http\Controllers\ProductController;
-use App\Http\Controllers\SupplierController;
+use App\Http\Controllers\BrandController;
+use App\Http\Controllers\CarBrandController;
 use App\Http\Controllers\CategoryController;
-use App\Http\Controllers\UnitController;
+use App\Http\Controllers\ProductController;
+use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\StockDocumentController;
-
+use App\Http\Controllers\SupplierController;
+use App\Http\Controllers\UnitController;
 use App\Models\Product;
 use App\Models\Supplier;
-
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -31,9 +31,16 @@ Route::middleware('auth')->group(function () {
     Route::delete('/stock-documents/{stockDocument}', [StockDocumentController::class, 'destroy'])->name('stock-documents.destroy');
 
 
+    Route::resource('brands', BrandController::class);
+    Route::resource('car-brands', CarBrandController::class);
+    Route::post('/car-models', [App\Http\Controllers\CarBrandController::class, 'storeCarModel'])->name('car-models.store');
+Route::put('/car-models/{id}', [App\Http\Controllers\CarBrandController::class, 'updateCarModel'])->name('car-models.update');
+Route::delete('/car-models/{id}', [App\Http\Controllers\CarBrandController::class, 'destroyCarModel'])->name('car-models.destroy');
+
+
     Route::get('/dashboard', function () {
-         // ดึงข้อมูลสรุป
-        $totalProducts = Product::count();
+        // ดึงข้อมูลสรุป
+        $totalProducts  = Product::count();
         $totalSuppliers = Supplier::count();
 
         // คำนวณมูลค่าสต็อกรวม (ราคาขาย x จำนวนสต็อก)
@@ -50,5 +57,4 @@ Route::middleware('auth')->group(function () {
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 });
 
-
-require __DIR__.'/auth.php';
+require __DIR__ . '/auth.php';

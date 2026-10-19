@@ -49,6 +49,19 @@
                     </select>
                 </div>
 
+                <!-- ยี่ห้ออะไหล่ (เพิ่มใหม่) -->
+                <div>
+                    <label class="block text-gray-700 font-medium mb-2">ยี่ห้ออะไหล่ (Brand)</label>
+                    <select name="brand_id" class="w-full border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 p-2 border">
+                        <option value="">-- เลือกยี่ห้ออะไหล่ --</option>
+                        @foreach($brands as $brand)
+                            <option value="{{ $brand->id }}" {{ old('brand_id') == $brand->id ? 'selected' : '' }}>
+                                {{ $brand->name }}
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
+
                 <!-- ซัพพลายเออร์ -->
                 <div>
                     <label class="block text-gray-700 font-medium mb-2">ซัพพลายเออร์</label>
@@ -92,6 +105,31 @@
                     <label class="block text-gray-700 font-medium mb-2">จำนวนสต็อก <span class="text-red-500">*</span></label>
                     <input type="number" name="stock" value="{{ old('stock', 0) }}" required class="w-full border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 p-2 border">
                 </div>
+            </div>
+
+            <!-- รุ่นรถที่รองรับ (เพิ่มใหม่) -->
+            <div class="mb-6">
+                <label class="block text-gray-700 font-medium mb-2">รุ่นรถที่รองรับ (เลือกได้หลายรุ่น)</label>
+                <div class="border rounded-md p-4 bg-gray-50 max-h-60 overflow-y-auto">
+                    @forelse($carModels->groupBy('brand.name') as $brandName => $models)
+                        <div class="mb-4">
+                            <h4 class="font-bold text-gray-800 border-b pb-1 mb-2">🚗 {{ $brandName }}</h4>
+                            <div class="grid grid-cols-2 md:grid-cols-3 gap-2">
+                                @foreach($models as $model)
+                                    <label class="inline-flex items-center">
+                                        <input type="checkbox" name="car_models[]" value="{{ $model->id }}"
+                                               {{ in_array($model->id, old('car_models', [])) ? 'checked' : '' }}
+                                               class="rounded border-gray-300 text-blue-600 shadow-sm">
+                                        <span class="ml-2 text-sm text-gray-700">{{ $model->name }}</span>
+                                    </label>
+                                @endforeach
+                            </div>
+                        </div>
+                    @empty
+                        <p class="text-gray-500 text-sm italic">ยังไม่มีข้อมูลรุ่นรถในระบบ (กรุณาไปเพิ่มที่เมนู "ยี่ห้อ/รุ่นรถ" ก่อน)</p>
+                    @endforelse
+                </div>
+                <p class="text-xs text-gray-500 mt-1">* ติ๊กถูกที่รุ่นรถที่อะไหล่ชิ้นนี้สามารถใช้ได้</p>
             </div>
 
             <!-- รายละเอียด -->

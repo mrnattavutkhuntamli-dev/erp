@@ -14,6 +14,7 @@ return new class extends Migration
         Schema::create('products', function (Blueprint $table) {
             $table->id();
             $table->foreignId('supplier_id')->nullable()->constrained()->nullOnDelete(); //รหัสผู้จัดจำหน่าย
+            $table->foreignId('brand_id')->nullable()->constrained()->nullOnDelete(); // ✅ เพิ่มบรรทัดนี้ลงไป (ยี่ห้ออะไหล่)
             $table->foreignId('category_id')->nullable()->constrained()->nullOnDelete(); // หมวดหมู่ id
             $table->foreignId('unit_id')->nullable()->constrained()->nullOnDelete(); // จำนวนหน่วย นับเป็นสินค้านี้เป็นอะไร
 

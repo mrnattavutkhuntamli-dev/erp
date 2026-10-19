@@ -25,6 +25,8 @@
             <a href="{{ route('dashboard') }}" class="block px-4 py-2 rounded hover:bg-gray-800 {{ request()->routeIs('dashboard') ? 'bg-gray-800 font-semibold' : '' }}">📊 Dashboard</a>
             <a href="{{ route('products.index') }}" class="block px-4 py-2 rounded hover:bg-gray-800 {{ request()->routeIs('products.*') ? 'bg-gray-800 font-semibold' : '' }}">📦 สินค้า</a>
             <a href="{{ route('categories.index') }}" class="block px-4 py-2 rounded hover:bg-gray-800 {{ request()->routeIs('categories.*') ? 'bg-gray-800 font-semibold' : '' }}">📑 หมวดหมู่</a>
+            <a href="{{ route('brands.index') }}" class="block px-4 py-2 rounded hover:bg-gray-800 {{ request()->routeIs('brands.*') ? 'bg-gray-800 font-semibold' : '' }}">🏷️ ยี่ห้ออะไหล่</a>
+<a href="{{ route('car-brands.index') }}" class="block px-4 py-2 rounded hover:bg-gray-800 {{ request()->routeIs('car-brands.*') ? 'bg-gray-800 font-semibold' : '' }}">🚗 ยี่ห้อ/รุ่นรถ</a>
             <a href="{{ route('suppliers.index') }}" class="block px-4 py-2 rounded hover:bg-gray-800 {{ request()->routeIs('suppliers.*') ? 'bg-gray-800 font-semibold' : '' }}">🏢 ซัพพลายเออร์</a>
             <a href="{{ route('units.index') }}" class="block px-4 py-2 rounded hover:bg-gray-800 {{ request()->routeIs('units.*') ? 'bg-gray-800 font-semibold' : '' }}">⚖️ หน่วยนับ</a>
             <a href="{{ route('stock-documents.index') }}" class="block px-4 py-2 rounded hover:bg-gray-800 {{ request()->routeIs('stock-documents.*') ? 'bg-gray-800 font-semibold' : '' }}">📄 ใบรับ/ใบเบิกสินค้า</a>

@@ -1,5 +1,4 @@
 <?php
-
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -13,12 +12,11 @@ class Product extends Model
      * ฟิลด์ที่อนุญาตให้บันทึกข้อมูลแบบ Mass Assignment
      *
      * @var array<int, string>
-    */
+     */
     protected $fillable = [
-        'supplier_id', 'category_id', 'unit_id', 'sku', 'name', 'description',
-        'cost', 'price', 'view_count', 'view_buy', 'stock', 'is_active'
+        'supplier_id', 'category_id', 'unit_id', 'brand_id', 'sku', 'name', 'description',
+        'cost', 'price', 'view_count', 'view_buy', 'stock', 'is_active',
     ];
-
     // สินค้า 1 ชิ้น อยู่ในหมวดหมู่ 1 หมวด
     public function category()
     {
@@ -59,5 +57,15 @@ class Product extends Model
         } while (self::where('sku', $sku)->exists());
 
         return $sku;
+    }
+    // ฟังก์ชันความสัมพันธ์
+    public function brand()
+    {
+        return $this->belongsTo(Brand::class);
+    }
+    // ความสัมพันธ์แบบ Many-to-Many กับรุ่นรถ
+    public function carModels()
+    {
+        return $this->belongsToMany(CarModel::class, 'product_car_model');
     }
 }

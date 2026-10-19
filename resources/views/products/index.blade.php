@@ -22,9 +22,9 @@
                 <tr class="bg-gray-100 text-gray-700 border-b">
                     <th class="p-4">รูป</th>
                     <th class="p-4">SKU</th>
-                    <th class="p-4">ชื่อสินค้า</th>
+                    <th class="p-4">ชื่อสินค้า / ยี่ห้อ</th>
                     <th class="p-4">หมวดหมู่</th>
-                    <th class="p-4">ราคาต้นทุ่น</th>
+                    <th class="p-4">ราคาต้นทุน</th>
                     <th class="p-4">ราคาขาย</th>
                     <th class="p-4">สต็อก</th>
                     <th class="p-4 text-center">จัดการ</th>
@@ -44,18 +44,16 @@
                             @endif
                         </td>
                         <td class="p-4 text-gray-600">{{ $product->sku }}</td>
-                        <td class="p-4 font-medium text-gray-800">{{ $product->name }}</td>
+                        <td class="p-4">
+                            <div class="font-medium text-gray-800">{{ $product->name }}</div>
+                            {{-- แสดงยี่ห้ออะไหล่ (ถ้ามี) --}}
+                            @if(isset($product->brand_name))
+                                <div class="text-xs text-blue-600 mt-1">🏷️ {{ $product->brand_name }}</div>
+                            @endif
+                        </td>
                         <td class="p-4 text-gray-600">{{ $product->category_name ?? '-' }}</td>
-                        <td class="p-4 text-gray-800">
-                            <span>
-                              ฿{{ number_format($product->cost, 2) }}
-                            </span>
-                              {{ $product->unit_name ?? '' }}
-                        </td>
-                        <td class="p-4 text-gray-800">
-                            <span> ฿{{ number_format($product->price, 2) }}</span>
-                         {{ $product->unit_name ?? '' }}
-                        </td>
+                        <td class="p-4 text-gray-800">฿{{ number_format($product->cost, 2) }}</td>
+                        <td class="p-4 text-gray-800">฿{{ number_format($product->price, 2) }}</td>
                         <td class="p-4">
                             <span class="{{ $product->stock < 10 ? 'text-red-600 font-bold' : 'text-gray-800' }}">
                                 {{ $product->stock }}
@@ -83,7 +81,8 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="7" class="p-8 text-center text-gray-500">
+                        {{-- แก้ไข colspan ให้ตรงกับจำนวนคอลัมน์จริง (8 คอลัมน์) --}}
+                        <td colspan="8" class="p-8 text-center text-gray-500">
                             ยังไม่มีข้อมูลสินค้าในระบบ
                         </td>
                     </tr>
