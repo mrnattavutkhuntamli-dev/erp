@@ -1,52 +1,126 @@
 @extends('layouts.app')
+
 @section('title', 'จัดการลูกค้า')
+
 @section('content')
-    <div class="flex justify-between items-center mb-6">
-        <h1 class="text-2xl font-bold text-gray-800">รายชื่อลูกค้า</h1>
-        <a href="{{ route('customers.create') }}" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 shadow">+ เพิ่มลูกค้าใหม่</a>
-    </div>
+    {{-- Alerts --}}
+    @if (session('success'))
+        <div class="mb-4 flex items-center gap-2 rounded-lg bg-emerald-50 px-4 py-3 text-sm text-emerald-800 ring-1 ring-emerald-200">
+            <svg class="h-5 w-5 flex-shrink-0 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            {{ session('success') }}
+        </div>
+    @endif
+    @if (session('error'))
+        <div class="mb-4 flex items-center gap-2 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-800 ring-1 ring-red-200">
+            <svg class="h-5 w-5 flex-shrink-0 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"/></svg>
+            {{ session('error') }}
+        </div>
+    @endif
 
-    @if (session('success')) <div class="bg-green-100 text-green-700 p-4 mb-4 rounded">{{ session('success') }}</div> @endif
+    <section class="overflow-hidden rounded-xl bg-white ring-1 ring-slate-200">
 
-    <div class="bg-white rounded shadow overflow-x-auto">
-        <table class="w-full text-left border-collapse">
-            <thead>
-                <tr class="bg-gray-100 text-gray-700 border-b">
-                    <th class="p-4">ชื่อลูกค้า / อู่</th>
-                    <th class="p-4">เบอร์โทร</th>
-                    <th class="p-4">ทะเบียนรถ</th>
-                    <th class="p-4">ที่อยู่</th>
-                    <th class="p-4 text-center">จัดการ</th>
-                </tr>
-            </thead>
-            <tbody>
-                @forelse($customers as $customer)
-                    <tr class="hover:bg-gray-50 border-b">
-                        <td class="p-4 font-medium text-gray-800">{{ $customer->name }}</td>
-                        <td class="p-4 text-gray-600">{{ $customer->phone ?? '-' }}</td>
-                        <td class="p-4">
-                            @if($customer->license_plate)
-                                <span class="bg-yellow-100 text-yellow-800 px-2 py-1 rounded text-sm font-mono border border-yellow-300">{{ $customer->license_plate }}</span>
-                            @else
-                                -
-                            @endif
-                        </td>
-                        <td class="p-4 text-gray-600 text-sm">{{ Str::limit($customer->address, 30) ?? '-' }}</td>
-                        <td class="p-4 text-center">
-                            <div class="flex justify-center space-x-2">
-                                <a href="{{ route('customers.edit', $customer->id) }}" class="bg-yellow-400 text-white px-3 py-1 rounded hover:bg-yellow-500 text-sm">แก้ไข</a>
-                                <form action="{{ route('customers.destroy', $customer->id) }}" method="POST" onsubmit="return confirm('ยืนยันการลบลูกค้ารายนี้?');">
-                                    @csrf @method('DELETE')
-                                    <button type="submit" class="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600 text-sm">ลบ</button>
-                                </form>
-                            </div>
-                        </td>
+        <!-- แถบหัวตาราง -->
+        <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-5 py-4">
+            <div>
+                <h1 class="text-lg font-semibold text-slate-900">รายชื่อลูกค้าทั้งหมด</h1>
+                <p class="text-sm text-slate-500">
+                    ทั้งหมด {{ number_format(method_exists($customers, 'total') ? $customers->total() : $customers->count()) }} รายการ
+                </p>
+            </div>
+            <a href="{{ route('customers.create') }}"
+               class="inline-flex items-center gap-2 rounded-lg bg-ink-900 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-ink-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 transition-colors">
+                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+                เพิ่มลูกค้าใหม่
+            </a>
+        </div>
+
+        <!-- ตาราง -->
+        <div class="overflow-x-auto">
+            <table class="w-full min-w-[52rem] text-left text-sm">
+                <thead class="bg-slate-50 text-slate-500">
+                    <tr>
+                        <th class="px-5 py-3 font-medium">ชื่อลูกค้า / อู่</th>
+                        <th class="px-5 py-3 font-medium">เบอร์โทร</th>
+                        <th class="px-5 py-3 font-medium">ทะเบียนรถ</th>
+                        <th class="px-5 py-3 font-medium">ที่อยู่</th>
+                        <th class="px-5 py-3 font-medium text-right">จัดการ</th>
                     </tr>
-                @empty
-                    <tr><td colspan="5" class="p-8 text-center text-gray-500">ยังไม่มีข้อมูลลูกค้า</td></tr>
-                @endforelse
-            </tbody>
-        </table>
-        <div class="p-4">{{ $customers->links() }}</div>
-    </div>
+                </thead>
+
+                <tbody class="divide-y divide-slate-100">
+                    @forelse ($customers as $customer)
+                        <tr class="hover:bg-slate-50 transition-colors">
+                            <td class="px-5 py-3">
+                                <div class="flex items-center gap-3">
+                                    <div class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-slate-100 text-sm font-semibold text-slate-600 ring-1 ring-slate-200">
+                                        {{ mb_strtoupper(mb_substr($customer->name, 0, 1)) }}
+                                    </div>
+                                    <span class="font-medium text-slate-900">{{ $customer->name }}</span>
+                                </div>
+                            </td>
+
+                            <td class="px-5 py-3 text-slate-600">{{ $customer->phone ?? '-' }}</td>
+
+                            <td class="px-5 py-3">
+                                @if ($customer->license_plate)
+                                    <span class="inline-flex rounded-md bg-amber-50 px-2.5 py-0.5 font-mono text-xs font-semibold text-amber-800 ring-1 ring-amber-200">{{ $customer->license_plate }}</span>
+                                @else
+                                    <span class="text-slate-400">-</span>
+                                @endif
+                            </td>
+
+                            <td class="max-w-xs truncate px-5 py-3 text-slate-500" title="{{ $customer->address }}">
+                                {{ $customer->address ? Str::limit($customer->address, 30) : '-' }}
+                            </td>
+
+                            {{-- ปุ่มจัดการ --}}
+                            <td class="px-5 py-3">
+                                <div class="flex items-center justify-end gap-1.5">
+                                    <a href="{{ route('customers.edit', $customer->id) }}"
+                                       title="แก้ไข" aria-label="แก้ไข {{ $customer->name }}"
+                                       class="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100 transition-colors">
+                                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125"/></svg>
+                                        แก้ไข
+                                    </a>
+
+                                    <form action="{{ route('customers.destroy', $customer->id) }}" method="POST"
+                                          onsubmit="return confirm('ยืนยันการลบลูกค้ารายนี้?');">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button type="submit"
+                                                title="ลบ" aria-label="ลบ {{ $customer->name }}"
+                                                class="inline-flex items-center gap-1.5 rounded-lg border border-red-200 px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-red-600 hover:border-red-600 hover:text-white transition-colors">
+                                            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/></svg>
+                                            ลบ
+                                        </button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                    @empty
+                        <tr>
+                            <td colspan="5" class="px-5 py-14 text-center">
+                                <div class="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-400">
+                                    <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z"/></svg>
+                                </div>
+                                <p class="font-medium text-slate-900">ยังไม่มีลูกค้าในระบบ</p>
+                                <p class="mb-4 text-sm text-slate-500">เริ่มจากเพิ่มลูกค้ารายแรกของคุณ</p>
+                                <a href="{{ route('customers.create') }}"
+                                   class="inline-flex items-center gap-2 rounded-lg bg-ink-900 px-4 py-2 text-sm font-medium text-white hover:bg-ink-800 transition-colors">
+                                    เพิ่มลูกค้าใหม่
+                                </a>
+                            </td>
+                        </tr>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
+
+        <!-- เลขหน้า -->
+        @if (method_exists($customers, 'hasPages') && $customers->hasPages())
+            <div class="border-t border-slate-200 px-5 py-4">
+                {{ $customers->withQueryString()->links() }}
+            </div>
+        @endif
+    </section>
 @endsection

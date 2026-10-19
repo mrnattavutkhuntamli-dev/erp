@@ -3,94 +3,141 @@
 @section('title', 'จัดการสินค้า')
 
 @section('content')
-    <div class="flex justify-between items-center mb-6">
-        <h1 class="text-2xl font-bold text-gray-800">รายการสินค้าทั้งหมด</h1>
-        <a href="{{ route('products.create') }}" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 shadow">
-            + เพิ่มสินค้า
-        </a>
-    </div>
+    <section class="overflow-hidden rounded-xl bg-white ring-1 ring-slate-200">
 
-    @if (session('success'))
-        <div class="bg-green-100 text-green-700 p-4 mb-4 rounded border border-green-200">
-            {{ session('success') }}
+        <!-- แถบหัวตาราง -->
+        <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-5 py-4">
+            <div>
+                <h1 class="text-lg font-semibold text-slate-900">รายการสินค้าทั้งหมด</h1>
+                <p class="text-sm text-slate-500">
+                    ทั้งหมด {{ number_format($products->total()) }} รายการ
+                </p>
+            </div>
+            <a href="{{ route('products.create') }}"
+               class="inline-flex items-center gap-2 rounded-lg bg-ink-900 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-ink-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 transition-colors">
+                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+                เพิ่มสินค้า
+            </a>
         </div>
-    @endif
 
-    <div class="bg-white rounded shadow overflow-x-auto">
-        <table class="w-full text-left border-collapse">
-            <thead>
-                <tr class="bg-gray-100 text-gray-700 border-b">
-                    <th class="p-4">รูป</th>
-                    <th class="p-4">SKU</th>
-                    <th class="p-4">ชื่อสินค้า / ยี่ห้อ</th>
-                    <th class="p-4">หมวดหมู่</th>
-                    <th class="p-4">ราคาต้นทุน</th>
-                    <th class="p-4">ราคาขาย</th>
-                    <th class="p-4">สต็อก</th>
-                    <th class="p-4 text-center">จัดการ</th>
-                </tr>
-            </thead>
-            <tbody>
-                @forelse($products as $product)
-                    <tr class="hover:bg-gray-50 border-b">
-                        <td class="p-4">
-                            @if ($product->primary_image_path)
-                                <img src="{{ asset('storage/' . $product->primary_image_path) }}" alt="รูปสินค้า"
-                                    class="w-16 h-16 object-cover rounded shadow-sm">
-                            @else
-                                <div class="w-16 h-16 bg-gray-200 flex items-center justify-center rounded text-xs text-gray-500">
-                                    ไม่มีรูป
-                                </div>
-                            @endif
-                        </td>
-                        <td class="p-4 text-gray-600">{{ $product->sku }}</td>
-                        <td class="p-4">
-                            <div class="font-medium text-gray-800">{{ $product->name }}</div>
-                            {{-- แสดงยี่ห้ออะไหล่ (ถ้ามี) --}}
-                            @if(isset($product->brand_name))
-                                <div class="text-xs text-blue-600 mt-1">🏷️ {{ $product->brand_name }}</div>
-                            @endif
-                        </td>
-                        <td class="p-4 text-gray-600">{{ $product->category_name ?? '-' }}</td>
-                        <td class="p-4 text-gray-800">฿{{ number_format($product->cost, 2) }}</td>
-                        <td class="p-4 text-gray-800">฿{{ number_format($product->price, 2) }}</td>
-                        <td class="p-4">
-                            <span class="{{ $product->stock < 10 ? 'text-red-600 font-bold' : 'text-gray-800' }}">
-                                {{ $product->stock }}
-                            </span>
-                            {{ $product->unit_name ?? '' }}
-                        </td>
-                        <td class="p-4 text-center">
-                            <div class="flex justify-center space-x-2">
-                                <a href="{{ route('products.edit', $product->id) }}"
-                                    class="bg-yellow-400 text-white px-3 py-1 rounded hover:bg-yellow-500 text-sm">
-                                    แก้ไข
-                                </a>
-
-                                <form action="{{ route('products.destroy', $product->id) }}" method="POST"
-                                    onsubmit="return confirm('คุณแน่ใจหรือไม่ว่าต้องการลบสินค้านี้?');">
-                                    @csrf
-                                    @method('DELETE')
-                                    <button type="submit"
-                                        class="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600 text-sm">
-                                        ลบ
-                                    </button>
-                                </form>
-                            </div>
-                        </td>
-                    </tr>
-                @empty
+        <!-- ตาราง -->
+        <div class="overflow-x-auto">
+            <table class="w-full min-w-[56rem] text-left text-sm">
+                <thead class="bg-slate-50 text-slate-500">
                     <tr>
-                        {{-- แก้ไข colspan ให้ตรงกับจำนวนคอลัมน์จริง (8 คอลัมน์) --}}
-                        <td colspan="8" class="p-8 text-center text-gray-500">
-                            ยังไม่มีข้อมูลสินค้าในระบบ
-                        </td>
+                        <th class="px-5 py-3 font-medium">สินค้า</th>
+                        <th class="px-5 py-3 font-medium">SKU</th>
+                        <th class="px-5 py-3 font-medium">หมวดหมู่</th>
+                        <th class="px-5 py-3 font-medium text-right">ราคาต้นทุน</th>
+                        <th class="px-5 py-3 font-medium text-right">ราคาขาย</th>
+                        <th class="px-5 py-3 font-medium">สต็อก</th>
+                        <th class="px-5 py-3 font-medium text-right">จัดการ</th>
                     </tr>
-                @endforelse
-            </tbody>
-        </table>
-    </div>
-    <div class="mt-6">
-        {{ $products->withQueryString()->links() }}
-    </div>
+                </thead>
+
+                <tbody class="divide-y divide-slate-100">
+                    @forelse ($products as $product)
+                        <tr class="hover:bg-slate-50 transition-colors">
+
+                            {{-- รูป + ชื่อสินค้า + ยี่ห้อ --}}
+                            <td class="px-5 py-3">
+                                <div class="flex items-center gap-3">
+                                    @if ($product->primary_image_path)
+                                        <img src="{{ asset('storage/' . $product->primary_image_path) }}" alt="รูป {{ $product->name }}"
+                                             class="h-12 w-12 flex-shrink-0 rounded-lg object-cover ring-1 ring-slate-200">
+                                    @else
+                                        <div class="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-400" title="ไม่มีรูป">
+                                            <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3.75 21h16.5A1.5 1.5 0 0021.75 19.5V4.5a1.5 1.5 0 00-1.5-1.5H3.75a1.5 1.5 0 00-1.5 1.5v15A1.5 1.5 0 003.75 21zM15 8.25h.008v.008H15V8.25z"/></svg>
+                                        </div>
+                                    @endif
+
+                                    <div class="min-w-0">
+                                        <div class="font-medium text-slate-900">{{ $product->name }}</div>
+                                        @if (isset($product->brand_name))
+                                            <div class="mt-0.5 inline-flex items-center gap-1 text-xs text-sky-700">
+                                                <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3zM6 6h.008v.008H6V6z"/></svg>
+                                                {{ $product->brand_name }}
+                                            </div>
+                                        @endif
+                                    </div>
+                                </div>
+                            </td>
+
+                            <td class="px-5 py-3 text-slate-500">{{ $product->sku }}</td>
+
+                            <td class="px-5 py-3">
+                                @if (!empty($product->category_name))
+                                    <span class="inline-flex rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-700">{{ $product->category_name }}</span>
+                                @else
+                                    <span class="text-slate-400">-</span>
+                                @endif
+                            </td>
+
+                            <td class="px-5 py-3 text-right text-slate-500">฿{{ number_format($product->cost, 2) }}</td>
+                            <td class="px-5 py-3 text-right font-medium text-slate-900">฿{{ number_format($product->price, 2) }}</td>
+
+                            {{-- สต็อก: ต่ำกว่า 10 เป็นสีเตือน --}}
+                            <td class="px-5 py-3">
+                                @if ($product->stock <= 0)
+                                    <span class="inline-flex rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-semibold text-red-700">หมดสต็อก</span>
+                                @elseif ($product->stock < 10)
+                                    <span class="inline-flex rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-800">
+                                        {{ number_format($product->stock) }} {{ $product->unit_name ?? '' }}
+                                    </span>
+                                @else
+                                    <span class="text-slate-800">{{ number_format($product->stock) }}</span>
+                                    <span class="text-slate-500">{{ $product->unit_name ?? '' }}</span>
+                                @endif
+                            </td>
+
+                            {{-- ปุ่มจัดการ --}}
+                            <td class="px-5 py-3">
+                                <div class="flex items-center justify-end gap-1.5">
+                                    <a href="{{ route('products.edit', $product->id) }}"
+                                       title="แก้ไข" aria-label="แก้ไข {{ $product->name }}"
+                                       class="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100 transition-colors">
+                                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125"/></svg>
+                                        แก้ไข
+                                    </a>
+
+                                    <form action="{{ route('products.destroy', $product->id) }}" method="POST"
+                                          onsubmit="return confirm('คุณแน่ใจหรือไม่ว่าต้องการลบสินค้านี้?');">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button type="submit"
+                                                title="ลบ" aria-label="ลบ {{ $product->name }}"
+                                                class="inline-flex items-center gap-1.5 rounded-lg border border-red-200 px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-red-600 hover:border-red-600 hover:text-white transition-colors">
+                                            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/></svg>
+                                            ลบ
+                                        </button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                    @empty
+                        <tr>
+                            <td colspan="7" class="px-5 py-14 text-center">
+                                <div class="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-400">
+                                    <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M21 7.5l-9-5.25L3 7.5m18 0l-9 5.25m9-5.25v9l-9 5.25M3 7.5l9 5.25M3 7.5v9l9 5.25m0-9v9"/></svg>
+                                </div>
+                                <p class="font-medium text-slate-900">ยังไม่มีสินค้าในระบบ</p>
+                                <p class="mb-4 text-sm text-slate-500">เริ่มจากเพิ่มสินค้าชิ้นแรกของคุณ</p>
+                                <a href="{{ route('products.create') }}"
+                                   class="inline-flex items-center gap-2 rounded-lg bg-ink-900 px-4 py-2 text-sm font-medium text-white hover:bg-ink-800 transition-colors">
+                                    เพิ่มสินค้า
+                                </a>
+                            </td>
+                        </tr>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
+
+        <!-- เลขหน้า -->
+        @if ($products->hasPages())
+            <div class="border-t border-slate-200 px-5 py-4">
+                {{ $products->withQueryString()->links() }}
+            </div>
+        @endif
+    </section>
 @endsection
