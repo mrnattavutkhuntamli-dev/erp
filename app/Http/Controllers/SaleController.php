@@ -12,11 +12,11 @@ class SaleController extends Controller
     // 1. หน้าจอ POS
     public function index()
     {
-       $products = Product::with('primaryImage')
-        ->where('is_active', true)
-        ->where('stock', '>', 0)
-        ->orderBy('name')
-        ->get();
+        $products = Product::with('primaryImage')
+            ->where('is_active', true)
+            ->where('stock', '>', 0)
+            ->orderBy('name')
+            ->get();
 
         $customers = Customer::where('is_active', true)->orderBy('name')->get();
 
@@ -98,6 +98,8 @@ class SaleController extends Controller
                     'discount'        => $discount,
                     'total'           => $total,
                     'payment_method'  => $validated['payment_method'],
+                    'payment_status'  => 'paid',
+                    'paid_amount'     => $total,
                     'received_amount' => $received,
                     'change_amount'   => $change,
                 ]);
