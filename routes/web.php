@@ -10,7 +10,7 @@ use App\Http\Controllers\SaleController;
 use App\Http\Controllers\StockDocumentController;
 use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\UnitController;
-// use App\Http\Controllers\ReportController;
+use App\Http\Controllers\ReportController;
 use App\Http\Controllers\TwoFactorController;
 use App\Http\Controllers\TwoFactorChallengeController;
 use App\Http\Controllers\UserController;
@@ -135,9 +135,10 @@ Route::middleware(['auth', '2fa'])->group(function () {
     });
 
     // 8. หน้ารายงาน (ยังไม่เปิดใช้งาน)
-    // Route::middleware('permission:view-reports')->group(function () {
-    //     Route::get('/reports', [ReportController::class, 'index'])->name('reports.index');
-    // });
+    Route::middleware('permission:view-reports')->group(function () {
+        Route::get('/reports', [ReportController::class, 'index'])->name('reports.index');
+        Route::get('/reports/export-pdf', [ReportController::class, 'exportPdf'])->name('reports.export-pdf'); // ✅ เพิ่ม
+    });
 
     // 9. หน้า Profile (ทุกคน)
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
