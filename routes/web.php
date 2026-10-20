@@ -15,6 +15,7 @@ use App\Http\Controllers\TwoFactorController;
 use App\Http\Controllers\TwoFactorChallengeController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\PurchaseOrderController;
+use App\Http\Controllers\StockAdjustmentController; // ✅ เปิดใช้งานแล้ว
 use App\Models\Product;
 use App\Models\Supplier;
 use Illuminate\Support\Facades\DB;
@@ -25,14 +26,12 @@ Route::get('/', function () {
 });
 
 // ==========================================
-// ✅ ย้าย Routes สำหรับ 2FA Challenge ออกมาข้างนอก
-// เพื่อให้คนที่ยังไม่ยืนยัน 2FA สามารถเข้าถึงหน้านี้ได้
+// ✅ Routes สำหรับ 2FA Challenge (เข้าถึงได้ก่อนยืนยัน 2FA)
 // ==========================================
 Route::middleware(['auth'])->group(function () {
     Route::get('/2fa-challenge', [TwoFactorChallengeController::class, 'show'])->name('2fa.challenge');
     Route::post('/2fa-verify', [TwoFactorChallengeController::class, 'verify'])->name('2fa.verify');
 });
-
 
 // ==========================================
 // กลุ่ม Routes ที่ต้องล็อกอิน + ยืนยัน 2FA แล้วเท่านั้น
@@ -49,13 +48,12 @@ Route::middleware(['auth', '2fa'])->group(function () {
         return view('dashboard', compact('totalProducts', 'totalSuppliers', 'totalStockValue', 'lowStockProducts'));
     })->name('dashboard');
 
-    // 2. หน้าสำหรับ Admin เท่านั้น
+    // 2. หน้าจัดการผู้ใช้ (Admin)
     Route::middleware('permission:manage-users')->group(function () {
-        // อนาคต: Route สำหรับจัดการ User, Role, Permission
         Route::resource('users', UserController::class);
     });
 
-    // 3. หน้าจัดการข้อมูลหลัก
+    // 3. หน้าจัดการข้อมูลหลัก (Admin, Stock)
     Route::middleware('permission:manage-master-data')->group(function () {
         Route::resource('categories', CategoryController::class);
         Route::resource('brands', BrandController::class);
@@ -66,36 +64,48 @@ Route::middleware(['auth', '2fa'])->group(function () {
         Route::delete('/car-models/{id}', [CarBrandController::class, 'destroyCarModel'])->name('car-models.destroy');
     });
 
-    // 4. หน้าสินค้า
+    // ==========================================
+    // 4. หน้าสินค้า (⚠️ ลำดับสำคัญมาก)
+    // ==========================================
     Route::middleware('permission:view-products')->group(function () {
         Route::get('/products', [ProductController::class, 'index'])->name('products.index');
-        Route::get('/products/{product}', [ProductController::class, 'show'])->name('products.show');
     });
 
     Route::middleware('permission:create-products')->group(function () {
         Route::get('/products/create', [ProductController::class, 'create'])->name('products.create');
         Route::post('/products', [ProductController::class, 'store'])->name('products.store');
     });
+
     Route::middleware('permission:edit-products')->group(function () {
         Route::get('/products/{product}/edit', [ProductController::class, 'edit'])->name('products.edit');
         Route::put('/products/{product}', [ProductController::class, 'update'])->name('products.update');
     });
+
     Route::middleware('permission:delete-products')->group(function () {
         Route::delete('/products/{product}', [ProductController::class, 'destroy'])->name('products.destroy');
     });
 
-    // 5. หน้าคลังสินค้า
+    // ⚠️ Route {product} ต้องอยู่ล่างสุดเสมอ
+    Route::middleware('permission:view-products')->group(function () {
+        Route::get('/products/{product}', [ProductController::class, 'show'])->name('products.show');
+    });
+
+    // ==========================================
+    // 5. หน้าคลังสินค้า (Stock Documents & PO & Adjustment)
+    // ==========================================
     Route::middleware('permission:view-stock')->group(function () {
         Route::get('/stock-documents', [StockDocumentController::class, 'index'])->name('stock-documents.index');
         Route::get('/stock-documents/{stockDocument}', [StockDocumentController::class, 'show'])->name('stock-documents.show');
     });
 
     Route::middleware('permission:create-stock-document')->group(function () {
+        // Stock Documents
         Route::get('/stock-documents/create', [StockDocumentController::class, 'create'])->name('stock-documents.create');
         Route::post('/stock-documents', [StockDocumentController::class, 'store'])->name('stock-documents.store');
         Route::get('/stock-documents/{stockDocument}/edit', [StockDocumentController::class, 'edit'])->name('stock-documents.edit');
         Route::put('/stock-documents/{stockDocument}', [StockDocumentController::class, 'update'])->name('stock-documents.update');
 
+        // Purchase Orders
         Route::get('/purchase-orders', [PurchaseOrderController::class, 'index'])->name('purchase-orders.index');
         Route::get('/purchase-orders/create', [PurchaseOrderController::class, 'create'])->name('purchase-orders.create');
         Route::post('/purchase-orders', [PurchaseOrderController::class, 'store'])->name('purchase-orders.store');
@@ -104,13 +114,19 @@ Route::middleware(['auth', '2fa'])->group(function () {
         Route::post('/purchase-orders/{purchaseOrder}/cancel', [PurchaseOrderController::class, 'cancel'])->name('purchase-orders.cancel');
         Route::delete('/purchase-orders/{purchaseOrder}', [PurchaseOrderController::class, 'destroy'])->name('purchase-orders.destroy');
 
+        // Stock Adjustments (✅ เปิดใช้งานแล้ว)
+        Route::get('/stock-adjustments', [StockAdjustmentController::class, 'index'])->name('stock-adjustments.index');
+        Route::get('/stock-adjustments/create', [StockAdjustmentController::class, 'create'])->name('stock-adjustments.create');
+        Route::post('/stock-adjustments', [StockAdjustmentController::class, 'store'])->name('stock-adjustments.store');
     });
 
     Route::middleware('permission:void-stock-document')->group(function () {
         Route::delete('/stock-documents/{stockDocument}', [StockDocumentController::class, 'destroy'])->name('stock-documents.destroy');
     });
 
-    // 6. หน้าขาย POS
+    // ==========================================
+    // 6. หน้าขาย POS (Admin, Cashier)
+    // ==========================================
     Route::middleware('permission:create-sale')->group(function () {
         Route::get('/sales', [SaleController::class, 'index'])->name('sales.index');
         Route::post('/sales', [SaleController::class, 'store'])->name('sales.store');
@@ -125,7 +141,9 @@ Route::middleware(['auth', '2fa'])->group(function () {
         Route::get('/sales-history', [SaleController::class, 'history'])->name('sales.history');
     });
 
-    // 7. หน้าจัดการคู่ค้า
+    // ==========================================
+    // 7. หน้าจัดการคู่ค้า (Admin, Cashier)
+    // ==========================================
     Route::middleware('permission:manage-customers')->group(function () {
         Route::resource('customers', CustomerController::class);
     });
@@ -134,18 +152,24 @@ Route::middleware(['auth', '2fa'])->group(function () {
         Route::resource('suppliers', SupplierController::class);
     });
 
-    // 8. หน้ารายงาน (ยังไม่เปิดใช้งาน)
+    // ==========================================
+    // 8. หน้ารายงาน (Admin, Accountant)
+    // ==========================================
     Route::middleware('permission:view-reports')->group(function () {
         Route::get('/reports', [ReportController::class, 'index'])->name('reports.index');
-        Route::get('/reports/export-pdf', [ReportController::class, 'exportPdf'])->name('reports.export-pdf'); // ✅ เพิ่ม
+        Route::get('/reports/export-pdf', [ReportController::class, 'exportPdf'])->name('reports.export-pdf');
     });
 
+    // ==========================================
     // 9. หน้า Profile (ทุกคน)
+    // ==========================================
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
-    // 10. หน้าตั้งค่า 2FA (สำหรับคนที่ล็อกอินแล้วและผ่าน 2FA แล้ว)
+    // ==========================================
+    // 10. หน้าตั้งค่า 2FA
+    // ==========================================
     Route::get('/two-factor', [TwoFactorController::class, 'show'])->name('two-factor.show');
     Route::post('/two-factor/enable', [TwoFactorController::class, 'enable'])->name('two-factor.enable');
     Route::post('/two-factor/disable', [TwoFactorController::class, 'disable'])->name('two-factor.disable');
