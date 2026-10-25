@@ -15,7 +15,7 @@ use App\Http\Controllers\StockDocumentController;
 use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\TwoFactorChallengeController;
 use App\Http\Controllers\TwoFactorController;
-use App\Http\Controllers\UnitController; // ✅ เปิดใช้งานแล้ว
+use App\Http\Controllers\UnitController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\ReceiptController;
 
@@ -88,7 +88,6 @@ Route::middleware(['auth', '2fa'])->group(function () {
         Route::delete('/products/{product}', [ProductController::class, 'destroy'])->name('products.destroy');
     });
 
-    // ⚠️ Route {product} ต้องอยู่ล่างสุดเสมอ
     Route::middleware('permission:view-products')->group(function () {
         Route::get('/products/{product}', [ProductController::class, 'show'])->name('products.show');
     });
@@ -96,19 +95,22 @@ Route::middleware(['auth', '2fa'])->group(function () {
     // ==========================================
     // 5. หน้าคลังสินค้า (Stock Documents & PO & Adjustment)
     // ==========================================
+
+    // ✅ 5.1: Index
     Route::middleware('permission:view-stock')->group(function () {
         Route::get('/stock-documents', [StockDocumentController::class, 'index'])->name('stock-documents.index');
-        Route::get('/stock-documents/{stockDocument}', [StockDocumentController::class, 'show'])->name('stock-documents.show');
     });
 
+    // ✅ 5.2: Create & Store (ต้องมาก่อน /{stockDocument})
     Route::middleware('permission:create-stock-document')->group(function () {
-        // Stock Documents
         Route::get('/stock-documents/create', [StockDocumentController::class, 'create'])->name('stock-documents.create');
         Route::post('/stock-documents', [StockDocumentController::class, 'store'])->name('stock-documents.store');
         Route::get('/stock-documents/{stockDocument}/edit', [StockDocumentController::class, 'edit'])->name('stock-documents.edit');
         Route::put('/stock-documents/{stockDocument}', [StockDocumentController::class, 'update'])->name('stock-documents.update');
+    });
 
-        // Purchase Orders
+    // ✅ 5.3: Purchase Orders
+    Route::middleware('permission:create-stock-document')->group(function () {
         Route::get('/purchase-orders', [PurchaseOrderController::class, 'index'])->name('purchase-orders.index');
         Route::get('/purchase-orders/create', [PurchaseOrderController::class, 'create'])->name('purchase-orders.create');
         Route::post('/purchase-orders', [PurchaseOrderController::class, 'store'])->name('purchase-orders.store');
@@ -117,12 +119,18 @@ Route::middleware(['auth', '2fa'])->group(function () {
         Route::post('/purchase-orders/{purchaseOrder}/cancel', [PurchaseOrderController::class, 'cancel'])->name('purchase-orders.cancel');
         Route::delete('/purchase-orders/{purchaseOrder}', [PurchaseOrderController::class, 'destroy'])->name('purchase-orders.destroy');
 
-        // Stock Adjustments (✅ เปิดใช้งานแล้ว)
+        // Stock Adjustments
         Route::get('/stock-adjustments', [StockAdjustmentController::class, 'index'])->name('stock-adjustments.index');
         Route::get('/stock-adjustments/create', [StockAdjustmentController::class, 'create'])->name('stock-adjustments.create');
         Route::post('/stock-adjustments', [StockAdjustmentController::class, 'store'])->name('stock-adjustments.store');
     });
 
+    // ✅ 5.4: Show (⚠️ ต้องอยู่ล่างสุดเสมอ)
+    Route::middleware('permission:view-stock')->group(function () {
+        Route::get('/stock-documents/{stockDocument}', [StockDocumentController::class, 'show'])->name('stock-documents.show');
+    });
+
+    // ✅ 5.5: Void
     Route::middleware('permission:void-stock-document')->group(function () {
         Route::delete('/stock-documents/{stockDocument}', [StockDocumentController::class, 'destroy'])->name('stock-documents.destroy');
     });
@@ -133,24 +141,11 @@ Route::middleware(['auth', '2fa'])->group(function () {
     Route::middleware('permission:create-sale')->group(function () {
         Route::get('/sales', [SaleController::class, 'index'])->name('sales.index');
         Route::post('/sales', [SaleController::class, 'store'])->name('sales.store');
+    });
+
+    // ⚠️ /sales/{sale} ต้องอยู่หลัง /sales/create (ถ้ามี)
+    Route::middleware('permission:create-sale')->group(function () {
         Route::get('/sales/{sale}', [SaleController::class, 'show'])->name('sales.show');
-
-        // ✅ Quotations (ใบเสนอราคา)
-        Route::get('/quotations', [QuotationController::class, 'index'])->name('quotations.index');
-        Route::get('/quotations/create', [QuotationController::class, 'create'])->name('quotations.create');
-        Route::post('/quotations', [QuotationController::class, 'store'])->name('quotations.store');
-        Route::get('/quotations/{quotation}', [QuotationController::class, 'show'])->name('quotations.show');
-        Route::post('/quotations/{quotation}/status', [QuotationController::class, 'updateStatus'])->name('quotations.update-status');
-        Route::post('/quotations/{quotation}/convert', [QuotationController::class, 'convertToSale'])->name('quotations.convert');
-        Route::get('/quotations/{quotation}/pdf', [QuotationController::class, 'exportPdf'])->name('quotations.pdf');
-
-        // receipts  บิลชำระเงิน
-        Route::get('/receipts', [ReceiptController::class, 'index'])->name('receipts.index');
-        Route::get('/receipts/create', [ReceiptController::class, 'create'])->name('receipts.create');
-        Route::post('/receipts', [ReceiptController::class, 'store'])->name('receipts.store');
-        Route::get('/receipts/{receipt}', [ReceiptController::class, 'show'])->name('receipts.show');
-        Route::delete('/receipts/{receipt}', [ReceiptController::class, 'destroy'])->name('receipts.destroy');
-
     });
 
     Route::middleware('permission:void-sale')->group(function () {
@@ -159,6 +154,26 @@ Route::middleware(['auth', '2fa'])->group(function () {
 
     Route::middleware('permission:view-sales')->group(function () {
         Route::get('/sales-history', [SaleController::class, 'history'])->name('sales.history');
+    });
+
+    // ✅ Quotations (ใบเสนอราคา)
+    Route::middleware('permission:create-sale')->group(function () {
+        Route::get('/quotations', [QuotationController::class, 'index'])->name('quotations.index');
+        Route::get('/quotations/create', [QuotationController::class, 'create'])->name('quotations.create');
+        Route::post('/quotations', [QuotationController::class, 'store'])->name('quotations.store');
+        Route::get('/quotations/{quotation}', [QuotationController::class, 'show'])->name('quotations.show');
+        Route::post('/quotations/{quotation}/status', [QuotationController::class, 'updateStatus'])->name('quotations.update-status');
+        Route::post('/quotations/{quotation}/convert', [QuotationController::class, 'convertToSale'])->name('quotations.convert');
+        Route::get('/quotations/{quotation}/pdf', [QuotationController::class, 'exportPdf'])->name('quotations.pdf');
+    });
+
+    // ✅ Receipts (บิลชำระเงิน)
+    Route::middleware('permission:create-sale')->group(function () {
+        Route::get('/receipts', [ReceiptController::class, 'index'])->name('receipts.index');
+        Route::get('/receipts/create', [ReceiptController::class, 'create'])->name('receipts.create');
+        Route::post('/receipts', [ReceiptController::class, 'store'])->name('receipts.store');
+        Route::get('/receipts/{receipt}', [ReceiptController::class, 'show'])->name('receipts.show');
+        Route::delete('/receipts/{receipt}', [ReceiptController::class, 'destroy'])->name('receipts.destroy');
     });
 
     // ==========================================

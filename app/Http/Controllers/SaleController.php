@@ -1,6 +1,7 @@
 <?php
 namespace App\Http\Controllers;
 
+use App\Models\Category;
 use App\Models\Customer;
 use App\Models\Product;
 use App\Models\Sale;
@@ -9,18 +10,19 @@ use Illuminate\Support\Facades\DB;
 
 class SaleController extends Controller
 {
-    // 1. หน้าจอ POS
-    public function index()
+    public function index(Request $request)
     {
-        $products = Product::with('primaryImage')
+        $categories = Category::orderBy('name')->get();
+
+        $products = Product::with('primaryImage:id,product_id,image_path')
             ->where('is_active', true)
             ->where('stock', '>', 0)
             ->orderBy('name')
-            ->get();
+            ->get(['id', 'name', 'sku', 'price', 'stock', 'category_id']);
 
         $customers = Customer::where('is_active', true)->orderBy('name')->get();
 
-        return view('sales.pos', compact('products', 'customers'));
+        return view('sales.pos', compact('products', 'customers', 'categories'));
     }
 
     public function history()
@@ -29,7 +31,6 @@ class SaleController extends Controller
             ->latest()
             ->paginate(15);
 
-        // คำนวณยอดขายรวมวันนี้ (สำหรับแสดงผล)
         $todaySales = Sale::whereDate('created_at', today())
             ->where('status', 'completed')
             ->sum('total');
@@ -37,7 +38,6 @@ class SaleController extends Controller
         return view('sales.history', compact('sales', 'todaySales'));
     }
 
-    // 2. บันทึกการขาย (รับจาก AJAX)
     public function store(Request $request)
     {
         $validated = $request->validate([
@@ -46,16 +46,28 @@ class SaleController extends Controller
             'items.*.product_id' => 'required|exists:products,id',
             'items.*.quantity'   => 'required|integer|min:1',
             'discount'           => 'nullable|numeric|min:0',
-            'payment_method'     => 'required|in:cash,transfer,credit_card',
-            'received_amount'    => 'required|numeric|min:0',
+            'payment_method'     => 'required|in:cash,transfer,credit_card,credit',
+            'received_amount'    => 'nullable|numeric|min:0',
+            'idempotency_key'    => 'nullable|uuid',
         ]);
 
         try {
             return DB::transaction(function () use ($validated) {
+                // ✅ ตรวจ Idempotency (ป้องกันกดซ้ำ)
+                if (! empty($validated['idempotency_key'])) {
+                    $existing = Sale::where('idempotency_key', $validated['idempotency_key'])->first();
+                    if ($existing) {
+                        return response()->json([
+                            'success'      => true,
+                            'sale_id'      => $existing->id,
+                            'redirect_url' => route('sales.show', $existing->id),
+                        ]);
+                    }
+                }
+
                 $subtotal      = 0;
                 $saleItemsData = [];
 
-                // ตรวจสอบสต็อกและคำนวณราคา
                 foreach ($validated['items'] as $item) {
                     $product = Product::lockForUpdate()->findOrFail($item['product_id']);
 
@@ -74,22 +86,28 @@ class SaleController extends Controller
                     ];
                 }
 
-                // คำนวณยอดสุทธิและเงินทอน
                 $discount = $validated['discount'] ?? 0;
                 $total    = $subtotal - $discount;
-                $received = $validated['received_amount'];
-                $change   = $received - $total;
 
-                if ($change < 0) {
-                    throw new \Exception("เงินที่รับมาไม่เพียงพอ (ต้องชำระอีก " . number_format(abs($change), 2) . " บาท)");
+                // ✅ ตรวจสอบ "ขายเชื่อ"
+                $isCredit = $validated['payment_method'] === 'credit';
+
+                if ($isCredit) {
+                    $received = 0;
+                    $change   = 0;
+                } else {
+                    $received = $validated['received_amount'] ?? 0;
+                    $change   = $received - $total;
+
+                    if ($change < 0) {
+                        throw new \Exception("เงินที่รับมาไม่เพียงพอ (ต้องชำระอีก " . number_format(abs($change), 2) . " บาท)");
+                    }
                 }
 
-                // สร้างเลขที่ใบเสร็จ
-                $dateStr     = date('Ymd');
-                $countToday  = Sale::whereDate('created_at', today())->count() + 1;
-                $invoiceNo   = 'INV-' . $dateStr . '-' . str_pad($countToday, 4, '0', STR_PAD_LEFT);
+                $dateStr    = date('Ymd');
+                $countToday = Sale::whereDate('created_at', today())->count() + 1;
+                $invoiceNo  = 'INV-' . $dateStr . '-' . str_pad($countToday, 4, '0', STR_PAD_LEFT);
 
-                // บันทึกหัวใบเสร็จ
                 $sale = Sale::create([
                     'invoice_no'      => $invoiceNo,
                     'customer_id'     => $validated['customer_id'],
@@ -97,14 +115,15 @@ class SaleController extends Controller
                     'subtotal'        => $subtotal,
                     'discount'        => $discount,
                     'total'           => $total,
-                    'payment_method'  => $validated['payment_method'],
-                    'payment_status'  => 'paid',
-                    'paid_amount'     => $total,
+                    'payment_method'  => $isCredit ? 'cash' : $validated['payment_method'],
+                    'payment_status'  => $isCredit ? 'unpaid' : 'paid',
+                    'paid_amount'     => $isCredit ? 0 : $total,
                     'received_amount' => $received,
                     'change_amount'   => $change,
+                    'status'          => 'completed',
+                    'idempotency_key' => $validated['idempotency_key'] ?? null,
                 ]);
 
-                // บันทึกรายการและตัดสต็อก
                 foreach ($saleItemsData as $data) {
                     $sale->items()->create([
                         'product_id' => $data['product']->id,
@@ -127,30 +146,38 @@ class SaleController extends Controller
         }
     }
 
-    // 3. หน้าแสดงใบเสร็จ
     public function show(Sale $sale)
     {
-        $sale->load(['items.product', 'user', 'customer']);
+        $sale->load(['items.product', 'user', 'customer', 'voidedBy']);
         return view('sales.receipt', compact('sale'));
     }
 
-    // 4. ยกเลิกใบเสร็จ
-    public function destroy(Sale $sale)
+    public function destroy(Request $request, Sale $sale)
     {
         if ($sale->status === 'voided') {
-            return redirect()->route('sales.index')->with('error', 'ใบเสร็จนี้ถูกยกเลิกแล้ว');
+            return back()->with('error', 'ใบเสร็จนี้ถูกยกเลิกแล้ว');
         }
 
+        $validated = $request->validate([
+            'void_reason' => 'required|string|max:500',
+        ]);
+
         try {
-            return DB::transaction(function () use ($sale) {
+            return DB::transaction(function () use ($sale, $validated) {
                 foreach ($sale->items as $item) {
                     $product = Product::lockForUpdate()->findOrFail($item->product_id);
                     $product->increment('stock', $item->quantity);
                 }
 
-                $sale->update(['status' => 'voided']);
+                $sale->update([
+                    'status'      => 'voided',
+                    'voided_at'   => now(),
+                    'voided_by'   => auth()->id(),
+                    'void_reason' => $validated['void_reason'],
+                ]);
 
-                return redirect()->route('sales.index')->with('success', 'ยกเลิกใบเสร็จ ' . $sale->invoice_no . ' สำเร็จ');
+                return redirect()->route('sales.history')
+                    ->with('success', 'ยกเลิกใบเสร็จ ' . $sale->invoice_no . ' สำเร็จ');
             });
         } catch (\Exception $e) {
             return back()->with('error', $e->getMessage());

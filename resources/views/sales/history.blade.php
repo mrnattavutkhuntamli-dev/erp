@@ -78,14 +78,20 @@
 
                             <td class="px-5 py-3 text-right font-medium {{ $voided ? 'text-slate-400 line-through' : 'text-slate-900' }}">฿{{ number_format($sale->total, 2) }}</td>
 
-                            {{-- วิธีชำระ --}}
+                            {{-- วิธีชำระ + สถานะการชำระ --}}
                             <td class="px-5 py-3">
-                                @if ($sale->payment_method == 'cash')
-                                    <span class="inline-flex rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-medium text-emerald-700">เงินสด</span>
-                                @elseif ($sale->payment_method == 'transfer')
-                                    <span class="inline-flex rounded-full bg-sky-100 px-2.5 py-0.5 text-xs font-medium text-sky-700">โอนเงิน</span>
+                                @if ($sale->payment_status === 'unpaid')
+                                    <span class="inline-flex rounded-full bg-orange-100 px-2.5 py-0.5 text-xs font-medium text-orange-700">📋 ขายเชื่อ (ค้างชำระ)</span>
+                                @elseif ($sale->payment_status === 'partial')
+                                    <span class="inline-flex rounded-full bg-yellow-100 px-2.5 py-0.5 text-xs font-medium text-yellow-700">ชำระบางส่วน</span>
                                 @else
-                                    <span class="inline-flex rounded-full bg-violet-100 px-2.5 py-0.5 text-xs font-medium text-violet-700">บัตรเครดิต</span>
+                                    @if ($sale->payment_method == 'cash')
+                                        <span class="inline-flex rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-medium text-emerald-700">เงินสด</span>
+                                    @elseif ($sale->payment_method == 'transfer')
+                                        <span class="inline-flex rounded-full bg-sky-100 px-2.5 py-0.5 text-xs font-medium text-sky-700">โอนเงิน</span>
+                                    @else
+                                        <span class="inline-flex rounded-full bg-violet-100 px-2.5 py-0.5 text-xs font-medium text-violet-700">บัตรเครดิต</span>
+                                    @endif
                                 @endif
                             </td>
 
@@ -102,17 +108,12 @@
                                     </a>
 
                                     @if (! $voided)
-                                        <form action="{{ route('sales.destroy', $sale->id) }}" method="POST"
-                                              onsubmit="return confirm('คุณแน่ใจหรือไม่ว่าต้องการยกเลิกใบเสร็จนี้? สต็อกสินค้าจะถูกคืนกลับอัตโนมัติ');">
-                                            @csrf
-                                            @method('DELETE')
-                                            <button type="submit"
-                                                    title="ยกเลิก" aria-label="ยกเลิก {{ $sale->invoice_no }}"
-                                                    class="inline-flex items-center gap-1.5 rounded-lg border border-red-200 px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-red-600 hover:border-red-600 hover:text-white transition-colors">
-                                                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
-                                                ยกเลิก
-                                            </button>
-                                        </form>
+                                        <button type="button" onclick="openVoidModal({{ $sale->id }}, '{{ $sale->invoice_no }}')"
+                                                title="ยกเลิก" aria-label="ยกเลิก {{ $sale->invoice_no }}"
+                                                class="inline-flex items-center gap-1.5 rounded-lg border border-red-200 px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-red-600 hover:border-red-600 hover:text-white transition-colors">
+                                            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                                            ยกเลิก
+                                        </button>
                                     @endif
                                 </div>
                             </td>
@@ -143,4 +144,36 @@
             </div>
         @endif
     </section>
+
+    <!-- ✅ Modal สำหรับ Void ใบเสร็จ -->
+    <div id="voidModal" class="fixed inset-0 z-50 bg-black/50 hidden items-center justify-center">
+        <div class="bg-white p-6 rounded-xl shadow-2xl max-w-md w-full mx-4">
+            <h3 class="text-lg font-bold text-slate-800 mb-4">⚠️ ยกเลิกใบเสร็จ</h3>
+            <p class="text-sm text-slate-600 mb-2">เลขที่: <span id="void-invoice-no" class="font-bold text-slate-900"></span></p>
+            <p class="text-sm text-slate-500 mb-4">การยกเลิกจะคืนสต็อกสินค้าอัตโนมัติ และไม่สามารถย้อนกลับได้</p>
+            <form id="void-form" method="POST">
+                @csrf
+                @method('DELETE')
+                <label class="block text-sm font-medium text-slate-700 mb-2">เหตุผลการยกเลิก <span class="text-red-500">*</span></label>
+                <textarea name="void_reason" required rows="3" placeholder="เช่น ลูกค้าคืนสินค้า, บันทึกผิด, ฯลฯ" class="w-full border border-slate-300 p-2 rounded-lg mb-4 focus:ring-red-500 focus:border-red-500"></textarea>
+                <div class="flex justify-end space-x-2">
+                    <button type="button" onclick="closeVoidModal()" class="bg-slate-200 text-slate-700 px-4 py-2 rounded-lg hover:bg-slate-300 transition">ยกเลิก</button>
+                    <button type="submit" class="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition">ยืนยันการยกเลิก</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        function openVoidModal(saleId, invoiceNo) {
+            document.getElementById('void-form').action = '/sales/' + saleId;
+            document.getElementById('void-invoice-no').textContent = invoiceNo;
+            document.getElementById('voidModal').classList.remove('hidden');
+            document.getElementById('voidModal').classList.add('flex');
+        }
+        function closeVoidModal() {
+            document.getElementById('voidModal').classList.add('hidden');
+            document.getElementById('voidModal').classList.remove('flex');
+        }
+    </script>
 @endsection

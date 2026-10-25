@@ -9,74 +9,80 @@ use App\Models\Supplier;
 use App\Models\Unit;
 use App\Models\Brand;
 use App\Models\CarModel;
+use Illuminate\Support\Str;
 
 class ProductSeeder extends Seeder
 {
     public function run(): void
     {
-        // ดึง ID ของข้อมูลที่ต้องอ้างอิง
-        $catOil = Category::where('name', 'น้ำมันเครื่อง')->first() ?? Category::first();
-        $catFilter = Category::where('name', 'ไส้กรอง')->first() ?? Category::first();
+        // 1. ดึงข้อมูลอ้างอิงทั้งหมดมาเตรียมไว้
+        $categories = Category::all();
+        $suppliers  = Supplier::all();
+        $units      = Unit::all();
+        $brands     = Brand::all();
+        $carModels  = CarModel::all();
 
-        $sup1 = Supplier::first();
-        $unitPiece = Unit::where('short_name', 'pcs')->first() ?? Unit::first();
-        $unitLiter = Unit::where('short_name', 'l')->first() ?? Unit::first();
+        // ถ้าข้อมูลหลักยังว่างอยู่ ให้หยุดทำงานก่อน
+        if ($categories->isEmpty() || $suppliers->isEmpty() || $units->isEmpty()) {
+            $this->command->warn('ไม่สามารถ Seed สินค้าได้ เนื่องจากข้อมูลหลัก (Category/Supplier/Unit) ยังว่างอยู่');
+            return;
+        }
 
-        $brandDenso = Brand::where('name', 'Denso')->first();
-        $brandMotul = Brand::where('name', 'Motul')->first();
-        $brandBosch = Brand::where('name', 'Bosch')->first();
+        // คำศัพท์สำหรับแต่งชื่อสินค้า
+        $prefixes = ['ไส้กรอง', 'น้ำมันเครื่อง', 'หัวเทียน', 'ผ้าเบรก', 'โช้คอัพ', 'ลูกปืน', 'สายพาน', 'กรองอากาศ', 'ปั๊มน้ำ', 'คอยล์'];
+        $suffixes = ['แท้', 'เทียม', 'Premium', 'Sport', 'Standard', 'Heavy Duty', 'Ultra', 'Eco', 'Pro', 'Max'];
 
-        $modelVigo = CarModel::where('name', 'Vigo')->first();
-        $modelDmax = CarModel::where('name', 'D-Max')->first();
-        $modelCivic = CarModel::where('name', 'Civic')->first();
+        $this->command->info('กำลังสร้างสินค้า 1,000 รายการ...');
+        $bar = $this->command->getOutput()->createProgressBar(1000);
+        $bar->start();
 
-        // 1. สร้างสินค้า: ไส้กรองน้ำมันเครื่อง (Denso)
-        $p1 = Product::create([
-            'supplier_id' => $sup1->id,
-            'category_id' => $catFilter->id,
-            'unit_id' => $unitPiece->id,
-            'brand_id' => $brandDenso->id,
-            'sku' => 'PRD-FLT-001',
-            'name' => 'ไส้กรองน้ำมันเครื่อง Denso',
-            'description' => 'ไส้กรองน้ำมันเครื่องคุณภาพสูง',
-            'cost' => 150.00,
-            'price' => 250.00,
-            'stock' => 50,
-            'is_active' => true,
-        ]);
-        // เชื่อมรุ่นรถ
-        $p1->carModels()->sync([$modelVigo->id, $modelDmax->id]);
+        for ($i = 1; $i <= 1000; $i++) {
+            // สุ่มเลือกข้อมูลอ้างอิง
+            $category = $categories->random();
+            $supplier = $suppliers->random();
+            $unit     = $units->random();
+            $brand    = $brands->isNotEmpty() ? $brands->random() : null;
 
-        // 2. สร้างสินค้า: น้ำมันเครื่อง Motul 5W-30
-        $p2 = Product::create([
-            'supplier_id' => $sup1->id,
-            'category_id' => $catOil->id,
-            'unit_id' => $unitLiter->id,
-            'brand_id' => $brandMotul->id,
-            'sku' => 'PRD-OIL-001',
-            'name' => 'น้ำมันเครื่อง Motul 8100 5W-30 (1L)',
-            'description' => 'น้ำมันเครื่องสังเคราะห์แท้ 100%',
-            'cost' => 450.00,
-            'price' => 650.00,
-            'stock' => 20,
-            'is_active' => true,
-        ]);
-        $p2->carModels()->sync([$modelCivic->id]);
+            // สร้างชื่อสินค้าแบบสุ่ม
+            $productName = $prefixes[array_rand($prefixes)] . ' ' .
+                           $brand?->name . ' ' .
+                           $suffixes[array_rand($suffixes)] . ' ' .
+                           Str::random(3);
 
-        // 3. สร้างสินค้า: หัวเทียน Bosch
-        $p3 = Product::create([
-            'supplier_id' => $sup1->id,
-            'category_id' => $catFilter->id,
-            'unit_id' => $unitPiece->id,
-            'brand_id' => $brandBosch->id,
-            'sku' => 'PRD-SPK-001',
-            'name' => 'หัวเทียน Bosch Platinum',
-            'description' => 'หัวเทียนแพลตตินั่ม',
-            'cost' => 120.00,
-            'price' => 200.00,
-            'stock' => 5, // ตั้งให้ต่ำกว่า 10 เพื่อทดสอบแจ้งเตือน Dashboard
-            'is_active' => true,
-        ]);
-        $p3->carModels()->sync([$modelVigo->id, $modelCivic->id]);
+            // คำนวณราคา
+            $cost  = rand(50, 5000); // ต้นทุน 50 - 5000 บาท
+            $price = $cost + ($cost * rand(10, 50) / 100); // ราคาขายบวกกำไร 10-50%
+
+            // สร้าง SKU แบบไม่ให้ซ้ำ
+            $sku = 'PRD-' . strtoupper(Str::random(3)) . '-' . str_pad($i, 4, '0', STR_PAD_LEFT);
+
+            // สร้างสินค้า
+            $product = Product::create([
+                'supplier_id' => $supplier->id,
+                'category_id' => $category->id,
+                'unit_id'     => $unit->id,
+                'brand_id'    => $brand?->id,
+                'sku'         => $sku,
+                'name'        => $productName,
+                'description' => 'สินค้าจำลองสำหรับทดสอบระบบ หมายเลข ' . $i,
+                'cost'        => $cost,
+                'price'       => $price,
+                'stock'       => rand(0, 200), // สุ่มสต็อก 0-200 ชิ้น
+                'is_active'   => rand(1, 100) > 5, // 95% เปิดใช้งาน
+            ]);
+
+            // สุ่มเชื่อมรุ่นรถ (ถ้ามี)
+            if ($carModels->isNotEmpty()) {
+                // สุ่มเลือกรถ 1-3 รุ่นที่สินค้านี้ใช้ได้
+                $randomModels = $carModels->random(rand(1, min(3, $carModels->count())));
+                $product->carModels()->sync($randomModels->pluck('id')->toArray());
+            }
+
+            $bar->advance();
+        }
+
+        $bar->finish();
+        $this->command->newLine();
+        $this->command->info('✅ สร้างสินค้า 1,000 รายการเสร็จเรียบร้อย!');
     }
 }

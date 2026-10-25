@@ -10,9 +10,11 @@ class Sale extends Model
         'subtotal', 'discount', 'total',
         'payment_method', 'payment_status', 'paid_amount', 'due_date', // ✅ เพิ่ม
         'received_amount', 'change_amount', 'status',
+        'voided_at', 'voided_by', 'void_reason', 'idempotency_key',
     ];
     protected $casts = [
         'due_date' => 'date',
+        'voided_at' => 'datetime',
     ];
 
     public function items()
@@ -32,5 +34,9 @@ class Sale extends Model
     public function receipts()
     {
         return $this->hasMany(Receipt::class);
+    }
+    public function voidedBy()
+    {
+        return $this->belongsTo(User::class, 'voided_by');
     }
 }
