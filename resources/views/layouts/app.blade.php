@@ -36,6 +36,9 @@
     <style>
         body { font-feature-settings: "tnum"; }
 
+        /* ซ่อนเมนูที่ยังไม่ถูกเตรียมโดย Alpine (กันกะพริบตอนโหลด) */
+        [x-cloak] { display: none !important; }
+
         /* scrollbar ของเมนูด้านข้างให้บางลง */
         .nav-scroll::-webkit-scrollbar { width: 6px; }
         .nav-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,.12); border-radius: 9999px; }
@@ -53,6 +56,11 @@
         @media (min-width: 1024px) {
             body.sidebar-collapsed #sidebar { display: none; }
         }
+
+        /* ซ่อน UI ของ Google Translate (แถบสีเทาด้านบน, tooltip, ไฮไลต์) */
+        .goog-te-banner-frame, iframe.skiptranslate, #goog-gt-tt, .goog-te-balloon-frame { display: none !important; }
+        body { top: 0 !important; }
+        .goog-text-highlight { background: none !important; box-shadow: none !important; }
 
         /* สไตล์สำหรับการพิมพ์ */
         @media print {
@@ -88,8 +96,8 @@
 
         <!-- โลโก้ -->
         <div class="h-16 px-5 flex items-center gap-3 border-b border-white/10">
-            <div class="h-9 w-9 rounded-lg bg-amber-500 text-ink-950 flex items-center justify-center font-bold text-lg">M</div>
-            <span class="text-lg font-semibold text-white tracking-tight">Mini ERP</span>
+            <div class="h-9 w-9 rounded-lg bg-amber-500 text-ink-950 flex items-center justify-center font-bold text-lg notranslate" translate="no">M</div>
+            <span class="text-lg font-semibold text-white tracking-tight notranslate" translate="no">Mini ERP</span>
             <button type="button" onclick="toggleSidebar()" class="ml-auto lg:hidden text-slate-400 hover:text-white" aria-label="ปิดเมนู">
                 <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
             </button>
@@ -150,10 +158,10 @@
         <!-- ผู้ใช้ + ออกจากระบบ -->
         <div class="p-4 border-t border-white/10">
             <div class="flex items-center gap-3 mb-3">
-                <div class="h-9 w-9 rounded-full bg-ink-700 text-white flex items-center justify-center text-sm font-semibold">{{ $initial }}</div>
+                <div class="h-9 w-9 rounded-full bg-ink-700 text-white flex items-center justify-center text-sm font-semibold notranslate" translate="no">{{ $initial }}</div>
                 <div class="min-w-0">
                     <div class="text-xs text-slate-500">ล็อกอินในชื่อ</div>
-                    <div class="text-sm text-white truncate">{{ $userName }}</div>
+                    <div class="text-sm text-white truncate notranslate" translate="no">{{ $userName }}</div>
                 </div>
             </div>
             <form method="POST" action="{{ route('logout') }}">
@@ -187,6 +195,44 @@
             </div>
 
             @php
+                // [รหัสภาษาของ Google, ชื่อที่แสดง, รหัสประเทศของธง]
+                $languages = [
+                    ['th',    'ไทย',      'th'],
+                    ['en',    'English',  'gb'],
+                    ['zh-CN', '中文',      'cn'],
+                    ['ja',    '日本語',    'jp'],
+                    ['ko',    '한국어',    'kr'],
+                ];
+            @endphp
+
+            <!-- ตัวสลับภาษา: อยู่นอกกล่องเลื่อน เพื่อให้ dropdown ไม่โดนตัด -->
+            <div class="notranslate relative z-50 shrink-0" translate="no"
+                 x-data="{ open: false }" @click.outside="open = false" @keydown.escape.window="open = false">
+
+                <button type="button" @click="open = !open" :aria-expanded="open"
+                        aria-label="เปลี่ยนภาษา" title="เปลี่ยนภาษา"
+                        class="h-9 w-9 rounded-full overflow-hidden ring-2 ring-slate-200 hover:ring-amber-500
+                               focus:outline-none focus-visible:ring-amber-500 transition">
+                    <img id="lang-current-flag" src="https://flagcdn.com/w40/th.png" alt="" class="h-full w-full object-cover">
+                </button>
+
+                <div x-show="open" x-cloak x-transition.opacity.duration.150ms
+                     class="absolute right-0 top-full mt-2 w-44 overflow-hidden rounded-xl bg-white p-1.5 shadow-lg ring-1 ring-slate-200">
+                    @foreach ($languages as [$code, $name, $flag])
+                        <button type="button" data-lang="{{ $code }}" data-flag="{{ $flag }}"
+                                onclick="setLanguage('{{ $code }}')"
+                                class="lang-item flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">
+                            <img src="https://flagcdn.com/w40/{{ $flag }}.png" alt="" class="h-5 w-5 rounded-full object-cover ring-1 ring-slate-200">
+                            <span>{{ $name }}</span>
+                        </button>
+                    @endforeach
+                </div>
+            </div>
+
+            <!-- widget จริงของ Google (ซ่อนไว้) -->
+            <div id="google_translate_element" class="hidden"></div>
+
+            @php
                 // ใช้ route ที่มีอยู่จริง ถ้ายังไม่มีจะเป็น '#'
                 $profileUrl = Route::has('profile.show') ? route('profile.show')
                             : (Route::has('profile.edit') ? route('profile.edit') : '#');
@@ -197,8 +243,8 @@
             <div class="group relative z-50 hidden sm:block shrink-0 pl-3 border-l border-slate-200">
                 <button type="button" aria-haspopup="true"
                         class="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-slate-100 group-focus-within:bg-slate-100 focus:outline-none transition-colors">
-                    <span class="h-8 w-8 rounded-full bg-ink-800 text-white flex items-center justify-center text-sm font-semibold">{{ $initial }}</span>
-                    <span class="text-sm text-slate-700 max-w-[10rem] truncate">{{ $userName }}</span>
+                    <span class="h-8 w-8 rounded-full bg-ink-800 text-white flex items-center justify-center text-sm font-semibold notranslate" translate="no">{{ $initial }}</span>
+                    <span class="text-sm text-slate-700 max-w-[10rem] truncate notranslate" translate="no">{{ $userName }}</span>
                     <svg class="h-4 w-4 text-slate-400 transition-transform group-hover:rotate-180 group-focus-within:rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5"/></svg>
                 </button>
 
@@ -209,10 +255,10 @@
                     <div class="overflow-hidden rounded-xl bg-white shadow-lg ring-1 ring-slate-200">
 
                         <div class="flex items-center gap-3 border-b border-slate-100 bg-slate-50 px-4 py-3">
-                            <span class="h-10 w-10 flex-shrink-0 rounded-full bg-ink-800 text-white flex items-center justify-center font-semibold">{{ $initial }}</span>
+                            <span class="h-10 w-10 flex-shrink-0 rounded-full bg-ink-800 text-white flex items-center justify-center font-semibold notranslate" translate="no">{{ $initial }}</span>
                             <div class="min-w-0">
-                                <div class="truncate text-sm font-medium text-slate-900">{{ $userName }}</div>
-                                <div class="truncate text-xs text-slate-500">{{ Auth::user()->email }}</div>
+                                <div class="truncate text-sm font-medium text-slate-900 notranslate" translate="no">{{ $userName }}</div>
+                                <div class="truncate text-xs text-slate-500 notranslate" translate="no">{{ Auth::user()->email }}</div>
                             </div>
                         </div>
 
@@ -298,6 +344,50 @@
             }, { passive: false });
         })();
     </script>
+
+    <!-- ===== สลับภาษาด้วย Google Translate ===== -->
+    <script>
+        function googleTranslateElementInit() {
+            new google.translate.TranslateElement({
+                pageLanguage: 'th',
+                includedLanguages: 'th,en,zh-CN,ja,ko',
+                autoDisplay: false
+            }, 'google_translate_element');
+        }
+
+        function getCurrentLang() {
+            const m = document.cookie.match(/(?:^|;\s*)googtrans=\/[^/]+\/([^;]+)/);
+            return m ? decodeURIComponent(m[1]) : 'th';
+        }
+
+        function setLanguage(lang) {
+            const host = location.hostname;
+            const expired = 'expires=Thu, 01 Jan 1970 00:00:00 GMT';
+            if (lang === 'th') {
+                // กลับเป็นภาษาต้นฉบับ: ลบ cookie
+                document.cookie = `googtrans=; ${expired}; path=/`;
+                document.cookie = `googtrans=; ${expired}; path=/; domain=${host}`;
+            } else {
+                document.cookie = `googtrans=/th/${lang}; path=/`;
+                document.cookie = `googtrans=/th/${lang}; path=/; domain=${host}`;
+            }
+            location.reload();
+        }
+
+        // แสดงธงของภาษาปัจจุบัน + ไฮไลต์รายการที่เลือก
+        document.addEventListener('DOMContentLoaded', function () {
+            const current = getCurrentLang();
+            document.querySelectorAll('.lang-item').forEach(function (btn) {
+                if (btn.dataset.lang === current) {
+                    btn.classList.add('bg-amber-50', 'font-medium');
+                    document.getElementById('lang-current-flag').src =
+                        'https://flagcdn.com/w40/' + btn.dataset.flag + '.png';
+                }
+            });
+        });
+    </script>
+    <script src="https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
+
     @stack('scripts')
 </body>
 </html>
