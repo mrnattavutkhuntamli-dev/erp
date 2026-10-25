@@ -8,8 +8,10 @@ use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PurchaseOrderController;
 use App\Http\Controllers\QuotationController;
+use App\Http\Controllers\ReceiptController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\SaleController;
+use App\Http\Controllers\SettingController;
 use App\Http\Controllers\StockAdjustmentController;
 use App\Http\Controllers\StockDocumentController;
 use App\Http\Controllers\SupplierController;
@@ -17,8 +19,6 @@ use App\Http\Controllers\TwoFactorChallengeController;
 use App\Http\Controllers\TwoFactorController;
 use App\Http\Controllers\UnitController;
 use App\Http\Controllers\UserController;
-use App\Http\Controllers\ReceiptController;
-
 use App\Models\Product;
 use App\Models\Supplier;
 use Illuminate\Support\Facades\DB;
@@ -54,6 +54,13 @@ Route::middleware(['auth', '2fa'])->group(function () {
     // 2. หน้าจัดการผู้ใช้ (Admin)
     Route::middleware('permission:manage-users')->group(function () {
         Route::resource('users', UserController::class);
+
+        Route::get('/settings', [SettingController::class, 'index'])->name('settings.index');
+        Route::put('/settings', [SettingController::class, 'update'])->name('settings.update');
+        Route::post('/settings', [SettingController::class, 'store'])->name('settings.store');
+        Route::put('/settings/{key}/update', [SettingController::class, 'updateCustom'])->name('settings.update-custom');
+        Route::patch('/settings/{key}/toggle', [SettingController::class, 'toggleActive'])->name('settings.toggle');
+        Route::delete('/settings/{key}', [SettingController::class, 'destroy'])->name('settings.destroy');
     });
 
     // 3. หน้าจัดการข้อมูลหลัก (Admin, Stock)
