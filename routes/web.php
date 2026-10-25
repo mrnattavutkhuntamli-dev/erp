@@ -6,21 +6,24 @@ use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\PurchaseOrderController;
+use App\Http\Controllers\QuotationController;
+use App\Http\Controllers\ReportController;
 use App\Http\Controllers\SaleController;
+use App\Http\Controllers\StockAdjustmentController;
 use App\Http\Controllers\StockDocumentController;
 use App\Http\Controllers\SupplierController;
-use App\Http\Controllers\UnitController;
-use App\Http\Controllers\ReportController;
-use App\Http\Controllers\TwoFactorController;
 use App\Http\Controllers\TwoFactorChallengeController;
+use App\Http\Controllers\TwoFactorController;
+use App\Http\Controllers\UnitController; // ✅ เปิดใช้งานแล้ว
 use App\Http\Controllers\UserController;
-use App\Http\Controllers\PurchaseOrderController;
-use App\Http\Controllers\StockAdjustmentController; // ✅ เปิดใช้งานแล้ว
+use App\Http\Controllers\ReceiptController;
+
 use App\Models\Product;
 use App\Models\Supplier;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\QuotationController;
+
 Route::get('/', function () {
     return view('welcome');
 });
@@ -141,6 +144,12 @@ Route::middleware(['auth', '2fa'])->group(function () {
         Route::post('/quotations/{quotation}/convert', [QuotationController::class, 'convertToSale'])->name('quotations.convert');
         Route::get('/quotations/{quotation}/pdf', [QuotationController::class, 'exportPdf'])->name('quotations.pdf');
 
+        // receipts  บิลชำระเงิน
+        Route::get('/receipts', [ReceiptController::class, 'index'])->name('receipts.index');
+        Route::get('/receipts/create', [ReceiptController::class, 'create'])->name('receipts.create');
+        Route::post('/receipts', [ReceiptController::class, 'store'])->name('receipts.store');
+        Route::get('/receipts/{receipt}', [ReceiptController::class, 'show'])->name('receipts.show');
+        Route::delete('/receipts/{receipt}', [ReceiptController::class, 'destroy'])->name('receipts.destroy');
 
     });
 
