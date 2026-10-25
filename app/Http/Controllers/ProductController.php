@@ -15,9 +15,18 @@ class ProductController extends Controller
     /**
      * หน้าแสดงรายการสินค้า
      */
-    public function index()
+    public function index(Request $request)
     {
-        // ดึงรายการสินค้าทั้งหมด พร้อมข้อมูลหมวดหมู่และรูปหน้าปกสินค้า
+        // จำนวนต่อหน้า: อนุญาตเฉพาะค่าที่กำหนด กันคนใส่ per_page=100000
+        $perPageOptions = [10, 25, 50, 100];
+        $perPage        = (int) $request->input('per_page', 10);
+        if (! in_array($perPage, $perPageOptions, true)) {
+            $perPage = 10;
+        }
+
+        $search     = trim((string) $request->input('q', ''));
+        $categoryId = $request->input('category_id');
+
         $products = DB::table('products')
             ->leftJoin('categories', 'products.category_id', '=', 'categories.id')
             ->leftJoin('suppliers', 'products.supplier_id', '=', 'suppliers.id')
@@ -27,7 +36,6 @@ class ProductController extends Controller
                 $join->on('products.id', '=', 'product_images.product_id')
                     ->where('product_images.is_primary', '=', true);
             })
-        // เลือกคอลัมน์ที่ต้องการ
             ->select(
                 'products.*',
                 'categories.name as category_name',
@@ -36,11 +44,29 @@ class ProductController extends Controller
                 'brands.name as brand_name',
                 'product_images.image_path as primary_image_path'
             )
-        // เรียงลำดับและดึงข้อมูล
-            ->latest('products.created_at')
-            ->paginate(10);
+            // ค้นหาจากชื่อสินค้า / SKU / ยี่ห้อ (escape ตัวอักษรพิเศษของ LIKE ก่อน)
+            ->when($search !== '', function ($query) use ($search) {
+                $like = '%' . addcslashes($search, '\\%_') . '%';
+                $query->where(function ($w) use ($like) {
+                    $w->where('products.name', 'like', $like)
+                        ->orWhere('products.sku', 'like', $like)
+                        ->orWhere('brands.name', 'like', $like);
+                });
+            })
+            // กรองตามหมวดหมู่
+            ->when(filled($categoryId), function ($query) use ($categoryId) {
+                $query->where('products.category_id', $categoryId);
+            })
+            ->orderByDesc('products.created_at')
+            ->orderByDesc('products.id') // กันลำดับสลับเวลา created_at ซ้ำกัน
+            ->paginate($perPage)
+            ->withQueryString();
 
-        return view('products.index', compact('products'));
+        $categories = Category::orderBy('name')->get();
+
+        return view('products.index', compact(
+            'products', 'categories', 'search', 'categoryId', 'perPage', 'perPageOptions'
+        ));
     }
 
     /**
