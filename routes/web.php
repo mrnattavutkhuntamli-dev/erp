@@ -1,10 +1,12 @@
 <?php
 
+use App\Http\Controllers\ApAgingController;
 use App\Http\Controllers\ArAgingController;
 use App\Http\Controllers\BrandController;
 use App\Http\Controllers\CarBrandController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\CustomerController;
+use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PurchaseOrderController;
@@ -15,12 +17,12 @@ use App\Http\Controllers\SaleController;
 use App\Http\Controllers\SettingController;
 use App\Http\Controllers\StockAdjustmentController;
 use App\Http\Controllers\StockDocumentController;
+use App\Http\Controllers\StockMovementController;
 use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\TwoFactorChallengeController;
 use App\Http\Controllers\TwoFactorController;
 use App\Http\Controllers\UnitController;
 use App\Http\Controllers\UserController;
-use App\Http\Controllers\ApAgingController;
 use App\Models\Product;
 use App\Models\Supplier;
 use Illuminate\Support\Facades\DB;
@@ -108,6 +110,10 @@ Route::middleware(['auth', '2fa'])->group(function () {
     // ✅ 5.1: Index
     Route::middleware('permission:view-stock')->group(function () {
         Route::get('/stock-documents', [StockDocumentController::class, 'index'])->name('stock-documents.index');
+
+        // ความเคลื่อนไหวสต็อก
+        Route::get('/reports/stock-movement', [StockMovementController::class, 'index'])->name('reports.stock-movement');
+
     });
 
     // ✅ 5.2: Create & Store (ต้องมาก่อน /{stockDocument})
@@ -210,6 +216,10 @@ Route::middleware(['auth', '2fa'])->group(function () {
         // รายงานเจ้าหนี้ (A/P Aging)
         Route::get('/reports/ap-aging', [ApAgingController::class, 'index'])->name('reports.ap-aging');
         Route::get('/reports/ap-aging/export-pdf', [ApAgingController::class, 'exportPdf'])->name('reports.ap-aging.export-pdf');
+
+        // ระบบค่าใช้จ่าย (Expenses)
+        Route::get('/expenses/{expense}/edit-data', [ExpenseController::class, 'editData'])->name('expenses.edit-data');
+        Route::resource('expenses', ExpenseController::class)->except(['create', 'edit', 'show']);
     });
 
     // ==========================================
