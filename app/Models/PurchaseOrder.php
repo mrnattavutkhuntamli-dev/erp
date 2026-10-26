@@ -10,7 +10,10 @@ class PurchaseOrder extends Model
         'po_no', 'supplier_id', 'user_id', 'order_date',
         'expected_date', 'status', 'total_amount', 'note'
     ];
-
+    protected $casts = [
+        'order_date'    => 'date',
+        'expected_date' => 'date',
+    ];
     /**
      * ความสัมพันธ์แบบ One-to-Many (1 ใบสั่งซื้อ มีได้หลายรายการสินค้า)
      * ฝั่ง PurchaseOrder เป็นเจ้าของ (Has Many) PurchaseOrderItem

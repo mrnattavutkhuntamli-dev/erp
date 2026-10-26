@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\ArAgingController;
 use App\Http\Controllers\BrandController;
 use App\Http\Controllers\CarBrandController;
 use App\Http\Controllers\CategoryController;
@@ -19,7 +20,7 @@ use App\Http\Controllers\TwoFactorChallengeController;
 use App\Http\Controllers\TwoFactorController;
 use App\Http\Controllers\UnitController;
 use App\Http\Controllers\UserController;
-use App\Http\Controllers\ArAgingController;
+use App\Http\Controllers\ApAgingController;
 use App\Models\Product;
 use App\Models\Supplier;
 use Illuminate\Support\Facades\DB;
@@ -206,6 +207,9 @@ Route::middleware(['auth', '2fa'])->group(function () {
         // รายงานลูกหนี้ (A/R Aging)
         Route::get('/reports/ar-aging', [ArAgingController::class, 'index'])->name('reports.ar-aging');
         Route::get('/reports/ar-aging/export-pdf', [ArAgingController::class, 'exportPdf'])->name('reports.ar-aging.export-pdf');
+        // รายงานเจ้าหนี้ (A/P Aging)
+        Route::get('/reports/ap-aging', [ApAgingController::class, 'index'])->name('reports.ap-aging');
+        Route::get('/reports/ap-aging/export-pdf', [ApAgingController::class, 'exportPdf'])->name('reports.ap-aging.export-pdf');
     });
 
     // ==========================================
