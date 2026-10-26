@@ -195,6 +195,25 @@ class ReceiptController extends Controller
         }
     }
 
+
+    public function createFromSale(Sale $sale) {
+        if($sale->status !== 'completed') {
+            return redirect()->route('receipts.create')->withh('error', 'บิลนี้ไม่สามารถรับชำระเงินได้ (สถานะ: ' . $sale->status . ')');
+        }
+        // ตรวจสอบว่าจ่ายครบหรือยัง
+        if($sale->payment_status === 'paid') {
+            return redirect()->route('receipts.create')
+            ->with('error', 'บิลนี้ชำระเงินครบแล้ว');
+        }
+        $sale->load('customer');
+        $idempotencyKey = (string) \Illuminate\Support\Str::uuid();
+        return view('receipts.show', [
+            'receipt' => null,
+            'sale' => $sale,
+            'idempotencyKey' => $idempotencyKey,
+        ]);
+    }
+
     private function toSatang($value): int
     {
         return (int) round(((float) $value) * 100);

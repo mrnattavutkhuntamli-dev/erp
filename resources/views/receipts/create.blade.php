@@ -8,7 +8,9 @@
             <a href="{{ route('receipts.index') }}" class="text-blue-600 hover:underline">&larr; กลับ</a>
         </div>
 
-        @if (session('error')) <div class="bg-red-100 text-red-700 p-4 mb-4 rounded-lg">{{ session('error') }}</div> @endif
+        @if (session('error'))
+            <div class="bg-red-100 text-red-700 p-4 mb-4 rounded-lg">{{ session('error') }}</div>
+        @endif
 
         <div class="bg-white rounded-xl shadow ring-1 ring-slate-200 overflow-hidden">
             <table class="w-full text-left border-collapse">
@@ -29,13 +31,19 @@
                             <td class="p-4 text-slate-600">{{ $sale->created_at->format('d/m/Y') }}</td>
                             <td class="p-4 text-slate-800">{{ $sale->customer->name ?? 'ลูกค้าทั่วไป' }}</td>
                             <td class="p-4 text-right text-slate-600">฿{{ number_format($sale->total, 2) }}</td>
-                            <td class="p-4 text-right font-bold text-red-600">฿{{ number_format($sale->total - $sale->paid_amount, 2) }}</td>
+                            <td class="p-4 text-right font-bold text-red-600">
+                                ฿{{ number_format($sale->total - $sale->paid_amount, 2) }}</td>
                             <td class="p-4 text-center">
-                                <a href="{{ route('receipts.show', 0) }}?sale_id={{ $sale->id }}" class="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 text-xs font-medium">รับชำระ</a>
+                                <a href="{{ route('receipts.create-from-sale', $sale->id) }}"
+                                    class="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 text-xs font-medium">
+                                    รับชำระ
+                                </a>
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="6" class="p-8 text-center text-slate-400 italic">ไม่มีบิลที่ค้างชำระเงิน 🎉</td></tr>
+                        <tr>
+                            <td colspan="6" class="p-8 text-center text-slate-400 italic">ไม่มีบิลที่ค้างชำระเงิน 🎉</td>
+                        </tr>
                     @endforelse
                 </tbody>
             </table>
