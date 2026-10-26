@@ -50,7 +50,12 @@ class SaleController extends Controller
             'received_amount'    => 'nullable|numeric|min:0',
             'idempotency_key'    => 'nullable|uuid',
         ]);
-
+        if ($validated['payment_method'] === 'credit' && empty($validated['customer_id'])) {
+            return response()->json([
+                'success' => false,
+                'message' => 'ไม่สามารถขายเชื่อให้ลูกค้าทั่วไปได้ กรุณาเลือกลูกค้าที่มีข้อมูล'
+            ], 422);
+        }
         try {
             return DB::transaction(function () use ($validated) {
                 // ✅ ตรวจ Idempotency (ป้องกันกดซ้ำ)
@@ -125,14 +130,15 @@ class SaleController extends Controller
                 ]);
 
                 foreach ($saleItemsData as $data) {
+                    $data['product']->decrement('stock', $data['quantity']);
+                    $newStock = $data['product']->fresh()->stock;
                     $sale->items()->create([
                         'product_id' => $data['product']->id,
                         'quantity'   => $data['quantity'],
                         'price'      => $data['price'],
                         'total'      => $data['total'],
+                        'stock_after' => $newStock,
                     ]);
-
-                    $data['product']->decrement('stock', $data['quantity']);
                 }
 
                 return response()->json([
