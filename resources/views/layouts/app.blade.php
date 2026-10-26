@@ -107,7 +107,7 @@
     <script>
         try { if (localStorage.getItem('sidebarCollapsed') === '1') document.body.classList.add('sidebar-collapsed'); } catch (e) {}
     </script>
-    @include('partials.page-loader')
+    {{-- @include('partials.page-loader') --}}
     <a href="#main-content" class="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-[60] focus:rounded-lg focus:bg-white focus:px-4 focus:py-2 focus:text-sm focus:shadow-lg print:hidden">ข้ามไปที่เนื้อหา</a>
 
     <!-- Overlay สำหรับมือถือ (ซ่อนเวลาพิมพ์) -->

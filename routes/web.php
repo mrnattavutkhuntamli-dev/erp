@@ -19,6 +19,7 @@ use App\Http\Controllers\TwoFactorChallengeController;
 use App\Http\Controllers\TwoFactorController;
 use App\Http\Controllers\UnitController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\ArAgingController;
 use App\Models\Product;
 use App\Models\Supplier;
 use Illuminate\Support\Facades\DB;
@@ -179,6 +180,7 @@ Route::middleware(['auth', '2fa'])->group(function () {
         Route::get('/receipts', [ReceiptController::class, 'index'])->name('receipts.index');
         Route::get('/receipts/create', [ReceiptController::class, 'create'])->name('receipts.create');
         Route::post('/receipts', [ReceiptController::class, 'store'])->name('receipts.store');
+        Route::get('/receipts/create-from-sale/{sale}', [ReceiptController::class, 'createFromSale'])->name('receipts.create-from-sale');
         Route::get('/receipts/{receipt}', [ReceiptController::class, 'show'])->name('receipts.show');
         Route::delete('/receipts/{receipt}', [ReceiptController::class, 'destroy'])->name('receipts.destroy');
     });
@@ -200,6 +202,10 @@ Route::middleware(['auth', '2fa'])->group(function () {
     Route::middleware('permission:view-reports')->group(function () {
         Route::get('/reports', [ReportController::class, 'index'])->name('reports.index');
         Route::get('/reports/export-pdf', [ReportController::class, 'exportPdf'])->name('reports.export-pdf');
+
+        // รายงานลูกหนี้ (A/R Aging)
+        Route::get('/reports/ar-aging', [ArAgingController::class, 'index'])->name('reports.ar-aging');
+        Route::get('/reports/ar-aging/export-pdf', [ArAgingController::class, 'exportPdf'])->name('reports.ar-aging.export-pdf');
     });
 
     // ==========================================
