@@ -56,6 +56,7 @@ class TwoFactorController extends Controller
         if ($valid) {
             $user->google2fa_enabled = true;
             $user->save();
+            session(['2fa_verified' => true]);
 
             return redirect()->route('profile.edit')->with('status', 'เปิดใช้งาน 2FA สำเร็จ!');
         }

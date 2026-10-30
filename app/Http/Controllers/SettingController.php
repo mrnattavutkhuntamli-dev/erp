@@ -48,7 +48,7 @@ class SettingController extends Controller
             }
 
             $file     = $request->file('company_logo');
-            $filename = 'logo_' . time() . '.' . $file->getClientOriginalExtension();
+            $filename = 'logo_' . time() . '.' . $file->extension();
             $file->storeAs('logo', $filename, 'public');
             Setting::set('company_logo', $filename);
         }

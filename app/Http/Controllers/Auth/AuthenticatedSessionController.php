@@ -26,6 +26,7 @@ class AuthenticatedSessionController extends Controller
         $request->authenticate();
 
         $request->session()->regenerate();
+        $request->session()->forget('2fa_verified');
         if (auth()->user()->google2fa_enabled) {
             return redirect()->route('2fa.challenge');
         }

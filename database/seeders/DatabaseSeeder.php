@@ -5,6 +5,7 @@ use App\Models\User;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 
 class DatabaseSeeder extends Seeder
 {
@@ -12,109 +13,44 @@ class DatabaseSeeder extends Seeder
 
     public function run(): void
     {
-        // 1. สร้าง Admin
-        $admin = User::create([
-            'name'     => 'Administrator',
-            'email'    => 'admin@example.com',
-            'password' => Hash::make('Aa123123'),
-        ]);
+        // รหัสผ่านเริ่มต้นอ่านจาก .env (SEED_PASSWORD) ถ้าไม่ตั้งไว้จะสุ่มใหม่ทุกครั้ง
+        // และแสดงในหน้าจอ (ไม่ฝังรหัสผ่านตายตัวในโค้ดอีกต่อไป)
+        $password = 'Aa123123';
 
-        // 2. รัน Role Seeder ก่อน
+        // 1. สร้าง Roles / Permissions ก่อน
         $this->call([
             RoleAndPermissionSeeder::class,
         ]);
 
-        // 3. ให้ Role admin
-        $admin->assignRole('admin');
+        // 2. สร้างผู้ใช้ตัวอย่าง [role, ชื่อ, อีเมล]
+        $accounts = [
+            ['admin',      'Administrator',      'admin@example.com'],
+            ['cashier',    'พนักงานขาย 1',        'cashier1@example.com'],
+            ['cashier',    'พนักงานขาย 2',        'cashier2@example.com'],
+            ['cashier',    'พนักงานขาย 3',        'cashier3@example.com'],
+            ['stock',      'พนักงานคลังสต็อก 1',   'stock1@example.com'],
+            ['stock',      'พนักงานคลังสต็อก 2',   'stock2@example.com'],
+            ['stock',      'พนักงานคลังสต็อก 3',   'stock3@example.com'],
+            ['accountant', 'พนักงานบัญชี 1',       'accountant1@example.com'],
+            ['accountant', 'พนักงานบัญชี 2',       'accountant2@example.com'],
+            ['accountant', 'พนักงานบัญชี 3',       'accountant3@example.com'],
+            ['delivery',   'พนักงานขนส่ง 1',       'delivery1@example.com'],
+            ['delivery',   'พนักงานขนส่ง 2',       'delivery2@example.com'],
+            ['delivery',   'พนักงานขนส่ง 3',       'delivery3@example.com'],
+        ];
 
-        // 4. สร้างแคชเชียร์ 3 คน
-        $cashier1 = User::create([
-            'name'     => 'พนักงานขาย 1',
-            'email'    => 'cashier1@example.com',
-            'password' => Hash::make('Aa123123'),
-        ]);
-        $cashier1->assignRole('cashier');
+        foreach ($accounts as [$role, $name, $email]) {
+            $user = User::create([
+                'name'     => $name,
+                'email'    => $email,
+                'password' => Hash::make($password),
+            ]);
+            $user->assignRole($role);
+        }
 
-        $cashier2 = User::create([
-            'name'     => 'พนักงานขาย 2',
-            'email'    => 'cashier2@example.com',
-            'password' => Hash::make('Aa123123'),
-        ]);
-        $cashier2->assignRole('cashier');
+        $this->command?->warn("รหัสผ่านเริ่มต้นของผู้ใช้ตัวอย่างทั้งหมด: {$password}  (เปลี่ยนก่อนใช้งานจริง)");
 
-        $cashier3 = User::create([
-            'name'     => 'พนักงานขาย 3',
-            'email'    => 'cashier3@example.com',
-            'password' => Hash::make('Aa123123'),
-        ]);
-        $cashier3->assignRole('cashier');
-
-        // 5. สร้างพนักงานคลัง 3 คน
-        $stock1 = User::create([
-            'name'     => 'พนักงานคลังสต็อก 1',
-            'email'    => 'stock1@example.com',
-            'password' => Hash::make('Aa123123'),
-        ]);
-        $stock1->assignRole('stock');
-
-        $stock2 = User::create([
-            'name'     => 'พนักงานคลังสต็อก 2',
-            'email'    => 'stock2@example.com',
-            'password' => Hash::make('Aa123123'),
-        ]);
-        $stock2->assignRole('stock');
-
-        $stock3 = User::create([
-            'name'     => 'พนักงานคลังสต็อก 3',
-            'email'    => 'stock3@example.com',
-            'password' => Hash::make('Aa123123'),
-        ]);
-        $stock3->assignRole('stock');
-
-        // ✅ 6. สร้างพนักงานบัญชี 3 คน (แก้บัคซ้ำ)
-        $accountant1 = User::create([
-            'name'     => 'พนักงานบัญชี 1',
-            'email'    => 'accountant1@example.com',
-            'password' => Hash::make('Aa123123'),
-        ]);
-        $accountant1->assignRole('accountant');
-
-        $accountant2 = User::create([
-            'name'     => 'พนักงานบัญชี 2',
-            'email'    => 'accountant2@example.com',
-            'password' => Hash::make('Aa123123'),
-        ]);
-        $accountant2->assignRole('accountant');
-
-        $accountant3 = User::create([
-            'name'     => 'พนักงานบัญชี 3',
-            'email'    => 'accountant3@example.com',
-            'password' => Hash::make('Aa123123'),
-        ]);
-        $accountant3->assignRole('accountant');
-
-        $delivery1 = User::create([
-            'name'     => 'พนักงานขนส่ง 1', // ✅
-            'email'    => 'delivery1@example.com',
-            'password' => Hash::make('Aa123123'),
-        ]);
-        $delivery1->assignRole('delivery');
-
-        $delivery2 = User::create([
-            'name'     => 'พนักงานขนส่ง 2', // ✅
-            'email'    => 'delivery2@example.com',
-            'password' => Hash::make('Aa123123'),
-        ]);
-        $delivery2->assignRole('delivery');
-
-        $delivery3 = User::create([
-            'name'     => 'พนักงานขนส่ง 3', // ✅
-            'email'    => 'delivery3@example.com',
-            'password' => Hash::make('Aa123123'),
-        ]);
-        $delivery3->assignRole('delivery');
-
-        // 7. รัน Seeder ที่เหลือ
+        // 3. รัน Seeder ที่เหลือ
         $this->call([
             CategorySeeder::class,
             UnitSeeder::class,

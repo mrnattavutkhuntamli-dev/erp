@@ -31,12 +31,5 @@
                 </a>
             </div>
         </div>
-
-        <!-- ส่วนลบบัญชี -->
-        <div class="p-6 bg-white shadow ring-1 ring-slate-200 sm:rounded-xl">
-            <div class="max-w-xl">
-                @include('profile.partials.delete-user-form')
-            </div>
-        </div>
     </div>
 @endsection

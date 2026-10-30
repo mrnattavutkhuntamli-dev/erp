@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\CashierShift;
+use App\Models\Receipt;
 use App\Models\Sale;
 use App\Models\ShiftSchedule;
 use Illuminate\Http\Request;
@@ -50,23 +51,16 @@ class CashierShiftController extends Controller
             return back()->with('error', 'คุณมีกะที่เปิดอยู่แล้ว กรุณาปิดกะก่อน');
         }
 
-        // 2. ตรวจสอบว่าวันนี้มีตารางกะหรือไม่
+        // 2-3. หากะของวันนี้ที่ครอบคลุมเวลาปัจจุบัน (รองรับหลายกะต่อวัน)
+        $currentTime   = now()->format('H:i:s');
         $todaySchedule = ShiftSchedule::where('user_id', auth()->id())
             ->where('shift_date', now()->toDateString())
+            ->where('start_time', '<=', $currentTime)
+            ->where('end_time', '>=', $currentTime)
             ->first();
 
-        if (!$todaySchedule) {
-            return back()->with('error', 'วันนี้คุณไม่มีตารางกะ ไม่สามารถเปิดกะได้');
-        }
-
-        // 3. ตรวจสอบเวลากะ
-        $currentTime = now()->format('H:i:s');
-        if ($currentTime < $todaySchedule->start_time || $currentTime > $todaySchedule->end_time) {
-            return back()->with('error',
-                'ยังไม่ถึงเวลากะของคุณ (กะของคุณ: ' .
-                \Carbon\Carbon::parse($todaySchedule->start_time)->format('H:i') . ' - ' .
-                \Carbon\Carbon::parse($todaySchedule->end_time)->format('H:i') . ')'
-            );
+        if (! $todaySchedule) {
+            return back()->with('error', 'ขณะนี้ไม่อยู่ในช่วงเวลากะที่กำหนดไว้ ไม่สามารถเปิดกะได้');
         }
 
         // 4. บันทึกกะใหม่
@@ -74,6 +68,11 @@ class CashierShiftController extends Controller
             'opening_cash' => 'required|numeric|min:0',
             'opening_note' => 'nullable|string|max:500',
         ]);
+
+        // เช็กซ้ำอีกครั้งหลัง validate (กันกดซ้ำ)
+        if (CashierShift::where('user_id', auth()->id())->where('status', 'open')->exists()) {
+            return back()->with('error', 'คุณมีกะที่เปิดอยู่แล้ว กรุณาปิดกะก่อน');
+        }
 
         CashierShift::create([
             'user_id'          => auth()->id(),
@@ -99,14 +98,17 @@ class CashierShiftController extends Controller
             return back()->with('error', 'คุณไม่มีสิทธิ์ปิดกะนี้');
         }
 
-        if ($cashierShift->status !== 'open') {
-            return back()->with('error', 'กะนี้ถูกปิดไปแล้ว');
-        }
-
         $validated = $request->validate([
             'closing_cash' => 'required|numeric|min:0',
             'closing_note' => 'nullable|string|max:500',
         ]);
+
+        return DB::transaction(function () use ($cashierShift, $validated) {
+        $cashierShift = CashierShift::lockForUpdate()->findOrFail($cashierShift->id);
+
+        if ($cashierShift->status !== 'open') {
+            return back()->with('error', 'กะนี้ถูกปิดไปแล้ว');
+        }
 
         // คำนวณยอดขายจาก Sales ในช่วงเวลากะ
         $sales = Sale::where('user_id', $cashierShift->user_id)
@@ -120,6 +122,13 @@ class CashierShiftController extends Controller
         $creditSales   = $sales->where('payment_method', 'credit')->sum('total'); // ✅ เพิ่ม
         $totalSales    = $sales->sum('total');
 
+        // เงินสดที่รับชำระหนี้ (ใบรับเงิน) ที่พนักงานคนนี้รับระหว่างกะ
+        $cashReceipts = Receipt::where('user_id', $cashierShift->user_id)
+            ->where('status', 'active')
+            ->where('payment_method', 'cash')
+            ->whereBetween('created_at', [$cashierShift->opened_at, now()])
+            ->sum('amount');
+
         // อัปเดตข้อมูลกะ
         $cashierShift->update([
             'closed_at'            => now(),
@@ -129,6 +138,7 @@ class CashierShiftController extends Controller
             'total_transfer_sales' => $transferSales,
             'total_card_sales'     => $cardSales,
             'total_credit_sales'   => $creditSales, // ✅ เพิ่ม
+            'total_cash_receipts'  => $cashReceipts,
             'total_sales'          => $totalSales,
             'total_bills'          => $sales->count(),
             'status'               => 'closed',
@@ -136,6 +146,7 @@ class CashierShiftController extends Controller
 
         return redirect()->route('cashier-shifts.show', $cashierShift->id)
             ->with('success', 'ปิดกะสำเร็จ!');
+        });
     }
 
     /**
@@ -143,10 +154,14 @@ class CashierShiftController extends Controller
      */
     public function show(CashierShift $cashierShift)
     {
+        if ($cashierShift->user_id !== auth()->id() && ! auth()->user()->hasRole('admin')) {
+            abort(403, 'คุณไม่มีสิทธิ์ดูกะนี้');
+        }
+
         $cashierShift->load('user');
 
         // คำนวณ "เงินที่ควรมีในลิ้นชัก"
-        $expectedCash = $cashierShift->opening_cash + $cashierShift->total_cash_sales - $cashierShift->total_expenses;
+        $expectedCash = $cashierShift->opening_cash + $cashierShift->total_cash_sales + $cashierShift->total_cash_receipts - $cashierShift->total_expenses;
         $difference = $cashierShift->closing_cash - $expectedCash;
 
         return view('cashier-shifts.show', compact('cashierShift', 'expectedCash', 'difference'));

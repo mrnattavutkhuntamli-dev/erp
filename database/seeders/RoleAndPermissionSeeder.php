@@ -22,9 +22,13 @@ class RoleAndPermissionSeeder extends Seeder
 
             // คลังสินค้า
             'view-stock', 'create-stock-document', 'void-stock-document',
+            'adjust-stock', // ปรับปรุงสต็อก (แยกจากการสร้างเอกสารรับ/เบิก)
 
             // การขาย
             'view-sales', 'create-sale', 'void-sale',
+
+            // การเงิน
+            'manage-receipts', 'void-receipt', 'manage-expenses',
 
             // ลูกค้าและซัพพลายเออร์
             'manage-customers', 'manage-suppliers',
@@ -46,20 +50,22 @@ class RoleAndPermissionSeeder extends Seeder
         $cashier = Role::firstOrCreate(['name' => 'cashier']);
         $cashier->syncPermissions([
             'view-products', 'view-stock',
-            'view-sales', 'create-sale', 'void-sale',
+            'view-sales', 'create-sale', 'manage-receipts',
             'manage-customers'
+            // ไม่มี void-sale: การยกเลิกบิลต้องเป็น admin
         ]);
 
         // ตำแหน่งที่ 3: พนักงานคลังสินค้า/จัดสินค้า (Stock)
         $stock = Role::firstOrCreate(['name' => 'stock']);
         $stock->syncPermissions([
-            'view-products', 'view-stock', 'create-stock-document',
+            'view-products', 'view-stock', 'create-stock-document', 'adjust-stock',
         ]);
 
         // ตำแหน่งที่ 4: พนักงานบัญชี (Accountant)
         $accountant = Role::firstOrCreate(['name' => 'accountant']);
         $accountant->syncPermissions([
-            'view-sales', 'view-reports', 'view-stock'
+            'view-sales', 'view-reports', 'view-stock',
+            'manage-receipts', 'void-receipt', 'manage-expenses',
         ]);
 
         // ตำแหน่งที่ 5: พนักงานยกของ/ขนส่ง (Delivery)

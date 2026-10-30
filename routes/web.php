@@ -7,6 +7,7 @@ use App\Http\Controllers\CarBrandController;
 use App\Http\Controllers\CashierShiftController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\CustomerController;
+use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProfileController;
@@ -48,14 +49,7 @@ Route::middleware(['auth'])->group(function () {
 Route::middleware(['auth', '2fa'])->group(function () {
 
     // 1. หน้า Dashboard
-    Route::get('/dashboard', function () {
-        $totalProducts    = Product::count();
-        $totalSuppliers   = Supplier::count();
-        $totalStockValue  = Product::sum(DB::raw('cost * stock')); // ✅ ใช้ cost
-        $lowStockProducts = Product::where('stock', '<', 10)->where('is_active', true)->get();
-
-        return view('dashboard', compact('totalProducts', 'totalSuppliers', 'totalStockValue', 'lowStockProducts'));
-    })->name('dashboard');
+    Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
     // 2. หน้าจัดการผู้ใช้ (Admin)
     Route::middleware('permission:manage-users')->group(function () {
@@ -107,10 +101,6 @@ Route::middleware(['auth', '2fa'])->group(function () {
         Route::delete('/products/{product}', [ProductController::class, 'destroy'])->name('products.destroy');
     });
 
-    Route::middleware('permission:view-products')->group(function () {
-        Route::get('/products/{product}', [ProductController::class, 'show'])->name('products.show');
-    });
-
     // ==========================================
     // 5. หน้าคลังสินค้า (Stock Documents & PO & Adjustment)
     // ==========================================
@@ -141,8 +131,10 @@ Route::middleware(['auth', '2fa'])->group(function () {
         Route::post('/purchase-orders/{purchaseOrder}/receive', [PurchaseOrderController::class, 'receive'])->name('purchase-orders.receive');
         Route::post('/purchase-orders/{purchaseOrder}/cancel', [PurchaseOrderController::class, 'cancel'])->name('purchase-orders.cancel');
         Route::delete('/purchase-orders/{purchaseOrder}', [PurchaseOrderController::class, 'destroy'])->name('purchase-orders.destroy');
+    });
 
-        // Stock Adjustments
+    // ✅ 5.3b: Stock Adjustments (แยกสิทธิ์จากเอกสารรับ/เบิก)
+    Route::middleware('permission:adjust-stock')->group(function () {
         Route::get('/stock-adjustments', [StockAdjustmentController::class, 'index'])->name('stock-adjustments.index');
         Route::get('/stock-adjustments/create', [StockAdjustmentController::class, 'create'])->name('stock-adjustments.create');
         Route::post('/stock-adjustments', [StockAdjustmentController::class, 'store'])->name('stock-adjustments.store');
@@ -174,7 +166,7 @@ Route::middleware(['auth', '2fa'])->group(function () {
     });
 
     // ⚠️ /sales/{sale} ต้องอยู่หลัง /sales/create (ถ้ามี)
-    Route::middleware('permission:create-sale')->group(function () {
+    Route::middleware('permission:view-sales')->group(function () {
         Route::get('/sales/{sale}', [SaleController::class, 'show'])->name('sales.show');
     });
 
@@ -198,12 +190,16 @@ Route::middleware(['auth', '2fa'])->group(function () {
     });
 
     // ✅ Receipts (บิลชำระเงิน)
-    Route::middleware('permission:create-sale')->group(function () {
+    Route::middleware('permission:manage-receipts')->group(function () {
         Route::get('/receipts', [ReceiptController::class, 'index'])->name('receipts.index');
         Route::get('/receipts/create', [ReceiptController::class, 'create'])->name('receipts.create');
         Route::post('/receipts', [ReceiptController::class, 'store'])->name('receipts.store');
         Route::get('/receipts/create-from-sale/{sale}', [ReceiptController::class, 'createFromSale'])->name('receipts.create-from-sale');
         Route::get('/receipts/{receipt}', [ReceiptController::class, 'show'])->name('receipts.show');
+    });
+
+    // ยกเลิกใบรับเงิน: เฉพาะ admin / accountant (แยกจากการรับเงิน)
+    Route::middleware('permission:void-receipt')->group(function () {
         Route::delete('/receipts/{receipt}', [ReceiptController::class, 'destroy'])->name('receipts.destroy');
     });
 
@@ -211,11 +207,11 @@ Route::middleware(['auth', '2fa'])->group(function () {
     // 7. หน้าจัดการคู่ค้า (Admin, Cashier)
     // ==========================================
     Route::middleware('permission:manage-customers')->group(function () {
-        Route::resource('customers', CustomerController::class);
+        Route::resource('customers', CustomerController::class)->except(['show']);
     });
 
     Route::middleware('permission:manage-suppliers')->group(function () {
-        Route::resource('suppliers', SupplierController::class);
+        Route::resource('suppliers', SupplierController::class)->except(['show']);
     });
 
     // ==========================================
@@ -231,8 +227,10 @@ Route::middleware(['auth', '2fa'])->group(function () {
         // รายงานเจ้าหนี้ (A/P Aging)
         Route::get('/reports/ap-aging', [ApAgingController::class, 'index'])->name('reports.ap-aging');
         Route::get('/reports/ap-aging/export-pdf', [ApAgingController::class, 'exportPdf'])->name('reports.ap-aging.export-pdf');
+    });
 
-        // ระบบค่าใช้จ่าย (Expenses)
+    // ระบบค่าใช้จ่าย (Expenses) แยกสิทธิ์จากรายงาน
+    Route::middleware('permission:manage-expenses')->group(function () {
         Route::get('/expenses/{expense}/edit-data', [ExpenseController::class, 'editData'])->name('expenses.edit-data');
         Route::resource('expenses', ExpenseController::class)->except(['create', 'edit', 'show']);
     });
@@ -242,7 +240,6 @@ Route::middleware(['auth', '2fa'])->group(function () {
     // ==========================================
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
-    Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
     // ==========================================
     // 10. หน้าตั้งค่า 2FA

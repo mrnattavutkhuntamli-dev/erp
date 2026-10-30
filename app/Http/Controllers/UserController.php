@@ -71,6 +71,11 @@ class UserController extends Controller
 
         $user->save();
 
+        // กันเปลี่ยน role ของ Admin คนสุดท้าย
+        if ($user->hasRole('admin') && $validated['role'] !== 'admin' && User::role('admin')->count() <= 1) {
+            return redirect()->route('users.index')->with('error', 'ไม่สามารถเปลี่ยน role ของ Admin คนสุดท้ายได้');
+        }
+
         // อัปเดต Role
         $user->syncRoles([$validated['role']]);
 
@@ -83,6 +88,15 @@ class UserController extends Controller
         // ป้องกันการลบตัวเอง
         if ($user->id === auth()->id()) {
             return redirect()->route('users.index')->with('error', 'ไม่สามารถลบตัวเองได้');
+        }
+
+        if ($user->hasRole('admin') && User::role('admin')->count() <= 1) {
+            return redirect()->route('users.index')->with('error', 'ไม่สามารถลบ Admin คนสุดท้ายได้');
+        }
+
+        if (\App\Models\Sale::where('user_id', $user->id)->exists()
+            || \App\Models\CashierShift::where('user_id', $user->id)->exists()) {
+            return redirect()->route('users.index')->with('error', 'พนักงานคนนี้มีประวัติการใช้งานแล้ว ไม่สามารถลบได้');
         }
 
         $user->delete();

@@ -28,7 +28,7 @@ class ApAgingController extends Controller
 
         foreach ($unpaidPOs as $po) {
             $dueAmount = $po->total_amount;
-            $daysOverdue = (int) now()->diffInDays($po->created_at);
+            $daysOverdue = (int) $po->created_at->diffInDays(now());
 
             $supplierId = $po->supplier_id;
             $supplierName = $po->supplier->name ?? 'ไม่ระบุซัพพลายเออร์';
@@ -85,7 +85,7 @@ class ApAgingController extends Controller
 
         foreach ($unpaidPOs as $po) {
             $dueAmount = $po->total_amount;
-            $daysOverdue = (int) now()->diffInDays($po->created_at);
+            $daysOverdue = (int) $po->created_at->diffInDays(now());
             $supplierId = $po->supplier_id;
             $supplierName = $po->supplier->name ?? 'ไม่ระบุซัพพลายเออร์';
 

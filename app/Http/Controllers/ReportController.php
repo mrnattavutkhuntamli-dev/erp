@@ -12,6 +12,11 @@ class ReportController extends Controller
 {
     public function index(Request $request)
     {
+        $request->validate([
+            'start_date' => 'nullable|date',
+            'end_date'   => 'nullable|date|after_or_equal:start_date',
+        ]);
+
         // ช่วงวันที่ (Default = เดือนปัจจุบัน)
         $startDate = $request->input('start_date', now()->startOfMonth()->format('Y-m-d'));
         $endDate   = $request->input('end_date', now()->format('Y-m-d'));
@@ -33,6 +38,10 @@ class ReportController extends Controller
         })
             ->selectRaw('SUM(sale_items.total - (sale_items.cost_at_sale * sale_items.quantity)) as profit')
             ->value('profit') ?? 0;
+
+        // หักส่วนลดระดับบิล
+        $grossProfit -= Sale::whereBetween(DB::raw('DATE(created_at)'), [$startDate, $endDate])
+            ->where('status', 'completed')->sum('discount');
 
         // 4. สินค้าขายดี 10 อันดับ
         $topProducts = SaleItem::select('product_id',
@@ -86,23 +95,16 @@ class ReportController extends Controller
             ->get();
 
         // 9. ยอดขายแยกตามหมวดหมู่สินค้า
-        $categorySales = SaleItem::select(
-            'products.category_id',
-            DB::raw('SUM(sale_items.total) as total_revenue'))
-            ->join('products', 'sale_items.product_id', '=', 'products.id')
-            ->whereHas('sale', function ($q) use ($startDate, $endDate) {
-                $q->whereBetween(DB::raw('DATE(created_at)'), [$startDate, $endDate])
-                    ->where('status', 'completed');
-            })
-            ->groupBy('products.category_id')
-            ->with('product.category')
+        $categorySales = SaleItem::query()
+            ->join('sales', 'sales.id', '=', 'sale_items.sale_id')
+            ->join('products', 'products.id', '=', 'sale_items.product_id')
+            ->leftJoin('categories', 'categories.id', '=', 'products.category_id')
+            ->where('sales.status', 'completed')
+            ->whereBetween(DB::raw('DATE(sales.created_at)'), [$startDate, $endDate])
+            ->groupBy('categories.id', 'categories.name')
+            ->selectRaw("COALESCE(categories.name, 'ไม่มีหมวดหมู่') as name, SUM(sale_items.total) as total")
             ->get()
-            ->map(function ($item) {
-                return [
-                    'name'  => $item->product->category->name ?? 'ไม่มีหมวดหมู่',
-                    'total' => $item->total_revenue,
-                ];
-            });
+            ->map(fn ($r) => ['name' => $r->name, 'total' => $r->total]);
 
         return view('reports.index', compact(
             'startDate', 'endDate', 'totalSales', 'totalBills',
@@ -113,6 +115,11 @@ class ReportController extends Controller
 
     public function exportPdf(Request $request)
     {
+        $request->validate([
+            'start_date' => 'nullable|date',
+            'end_date'   => 'nullable|date|after_or_equal:start_date',
+        ]);
+
         $startDate = $request->input('start_date', now()->startOfMonth()->format('Y-m-d'));
         $endDate   = $request->input('end_date', now()->format('Y-m-d'));
 
@@ -128,6 +135,10 @@ class ReportController extends Controller
         })
             ->selectRaw('SUM(sale_items.total - (sale_items.cost_at_sale * sale_items.quantity)) as profit')
             ->value('profit') ?? 0;
+
+        // หักส่วนลดระดับบิล
+        $grossProfit -= Sale::whereBetween(DB::raw('DATE(created_at)'), [$startDate, $endDate])
+            ->where('status', 'completed')->sum('discount');
 
         $topProducts = SaleItem::select('product_id',
             DB::raw('SUM(quantity) as total_qty'),

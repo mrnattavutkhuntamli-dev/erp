@@ -35,26 +35,18 @@ class TwoFactorChallengeController extends Controller
 
         $google2fa = new \PragmaRX\Google2FA\Google2FA();
 
-        // ✅ ตรวจสอบรหัส + กันใช้ซ้ำ
-        $valid = $google2fa->verifyKey($user->google2fa_secret, $request->otp);
+        // verifyKeyNewer: ปฏิเสธรหัสที่เคยใช้แล้ว (ตาม timestamp ของรหัสล่าสุด)
+        $lastTs = cache()->get('2fa-last-ts:' . $user->id);
+        $ts     = $google2fa->verifyKeyNewer($user->google2fa_secret, $request->otp, $lastTs);
 
-        if ($valid) {
-            // ✅ กันใช้รหัสซ้ำ (เก็บ timestamp รหัสล่าสุด)
-            $lastOtpTime = cache()->get('2fa-last-otp:' . $user->id);
-            $now         = now()->timestamp;
-
-            if ($lastOtpTime && ($now - $lastOtpTime) < 30) {
-                RateLimiter::hit($key, 60);
-                return back()->withErrors(['otp' => 'รหัสนี้ถูกใช้ไปแล้ว กรุณารอรหัสใหม่']);
-            }
-
-            cache()->put('2fa-last-otp:' . $user->id, $now, 60);
+        if ($ts !== false) {
+            cache()->put('2fa-last-ts:' . $user->id, $ts, now()->addMinutes(5));
             RateLimiter::clear($key);
             session(['2fa_verified' => true]);
             return redirect()->intended('/dashboard');
         }
 
         RateLimiter::hit($key, 60);
-        return back()->withErrors(['otp' => 'รหัส OTP ไม่ถูกต้อง']);
+        return back()->withErrors(['otp' => 'รหัส OTP ไม่ถูกต้องหรือถูกใช้ไปแล้ว']);
     }
 }

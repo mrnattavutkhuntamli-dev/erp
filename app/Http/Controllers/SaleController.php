@@ -1,17 +1,24 @@
 <?php
 namespace App\Http\Controllers;
 
+use App\Models\CashierShift;
 use App\Models\Category;
 use App\Models\Customer;
 use App\Models\Product;
 use App\Models\Sale;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class SaleController extends Controller
 {
     public function index(Request $request)
     {
+        // ไม่ให้เข้าหน้า POS ถ้ายังไม่ถึงกะ/หมดกะ พาไปหน้าเปิด-ปิดกะพร้อมบอกเหตุผล
+        if ($reason = CashierShift::sellBlockReason(auth()->user())) {
+            return redirect()->route('cashier-shifts.index')->with('error', $reason);
+        }
+
         $categories = Category::orderBy('name')->get();
 
         $products = Product::with('primaryImage:id,product_id,image_path')
@@ -56,6 +63,11 @@ class SaleController extends Controller
                 'message' => 'ไม่สามารถขายเชื่อให้ลูกค้าทั่วไปได้ กรุณาเลือกลูกค้าที่มีข้อมูล',
             ], 422);
         }
+
+        // ต้องอยู่ในช่วงกะของตัวเองจึงขายได้ (ยกเว้น admin)
+        if ($reason = CashierShift::sellBlockReason(auth()->user())) {
+            return response()->json(['success' => false, 'message' => $reason], 422);
+        }
         try {
             return DB::transaction(function () use ($validated) {
                 // ✅ ตรวจ Idempotency (ป้องกันกดซ้ำ)
@@ -73,11 +85,21 @@ class SaleController extends Controller
                 $subtotal      = 0;
                 $saleItemsData = [];
 
-                foreach ($validated['items'] as $item) {
+                // รวมสินค้าซ้ำ + เรียงตาม id (กัน deadlock / ตัดสต็อกเกิน)
+                $lines = collect($validated['items'])
+                    ->groupBy('product_id')
+                    ->map(fn ($g, $id) => ['product_id' => (int) $id, 'quantity' => (int) $g->sum('quantity')])
+                    ->sortKeys()
+                    ->values();
+
+                foreach ($lines as $item) {
                     $product = Product::lockForUpdate()->findOrFail($item['product_id']);
 
+                    if (! $product->is_active) {
+                        throw new \DomainException("สินค้า '{$product->name}' ถูกปิดการขาย");
+                    }
                     if ($product->stock < $item['quantity']) {
-                        throw new \Exception("สินค้า '{$product->name}' มีสต็อกไม่พอ (เหลือ {$product->stock})");
+                        throw new \DomainException("สินค้า '{$product->name}' มีสต็อกไม่พอ (เหลือ {$product->stock})");
                     }
 
                     $itemTotal = $product->price * $item['quantity'];
@@ -94,7 +116,7 @@ class SaleController extends Controller
 
                 $discount = $validated['discount'] ?? 0;
                 if ($discount > $subtotal) {
-                    throw new \Exception("ส่วนลด (฿" . number_format($discount, 2) . ") เกินยอดรวม (฿" . number_format($subtotal, 2) . ")");
+                    throw new \DomainException("ส่วนลด (฿" . number_format($discount, 2) . ") เกินยอดรวม (฿" . number_format($subtotal, 2) . ")");
                 }
                 $total = $subtotal - $discount;
 
@@ -109,17 +131,13 @@ class SaleController extends Controller
                     $change   = $received - $total;
 
                     if ($change < 0) {
-                        throw new \Exception("เงินที่รับมาไม่เพียงพอ (ต้องชำระอีก " . number_format(abs($change), 2) . " บาท)");
+                        throw new \DomainException("เงินที่รับมาไม่เพียงพอ (ต้องชำระอีก " . number_format(abs($change), 2) . " บาท)");
                     }
                 }
 
-                $dateStr    = date('Ymd');
-                $countToday = Sale::whereDate('created_at', today())->count() + 1;
-                $invoiceNo  = 'INV-' . $dateStr . '-' . str_pad($countToday, 4, '0', STR_PAD_LEFT);
-
                 $sale = Sale::create([
-                    'invoice_no'      => $invoiceNo,
-                    'customer_id'     => $validated['customer_id'],
+                    'invoice_no'      => 'TMP-' . Str::uuid(),
+                    'customer_id'     => $validated['customer_id'] ?? null,
                     'user_id'         => auth()->id(),
                     'subtotal'        => $subtotal,
                     'discount'        => $discount,
@@ -156,8 +174,11 @@ class SaleController extends Controller
                     'redirect_url' => route('sales.show', $sale->id),
                 ]);
             });
-        } catch (\Exception $e) {
+        } catch (\DomainException $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        } catch (\Throwable $e) {
+            report($e);
+            return response()->json(['success' => false, 'message' => 'เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง'], 500);
         }
     }
 
@@ -169,35 +190,31 @@ class SaleController extends Controller
 
     public function destroy(Request $request, Sale $sale)
     {
-        if ($sale->status === 'voided') {
-            return back()->with('error', 'ใบเสร็จนี้ถูกยกเลิกแล้ว');
-        }
-
-        // ✅ ตรวจสอบว่ามี Receipt ที่ยัง Active อยู่หรือไม่
-        $activeReceipt = $sale->receipts()->where('status', 'active')->first();
-        if ($activeReceipt) {
-            return back()->with('error',
-                'ไม่สามารถยกเลิกบิลนี้ได้ เพราะมีการรับชำระเงินแล้ว ' .
-                'กรุณายกเลิกใบรับเงิน ' . $activeReceipt->receipt_no . ' ก่อน'
-            );
-        }
         $validated = $request->validate([
             'void_reason' => 'required|string|max:500',
         ]);
 
         try {
             return DB::transaction(function () use ($sale, $validated) {
-                // ✅ Lock แถว Sale ก่อนตรวจสอบซ้ำ (ป้องกันกดซ้ำพร้อมกัน)
-                $lockedSale = Sale::lockForUpdate()->findOrFail($sale->id);
-                if ($lockedSale->status === 'voided') {
-                    throw new \Exception('ใบเสร็จนี้ถูกยกเลิกแล้ว');
-                }
-                foreach ($sale->items as $item) {
-                    $product = Product::lockForUpdate()->findOrFail($item->product_id);
-                    $product->increment('stock', $item->quantity);
+                $locked = Sale::lockForUpdate()->findOrFail($sale->id);
+
+                if ($locked->status === 'voided') {
+                    throw new \DomainException('ใบเสร็จนี้ถูกยกเลิกแล้ว');
                 }
 
-                $sale->update([
+                $activeReceipt = $locked->receipts()->where('status', 'active')->first();
+                if ($activeReceipt) {
+                    throw new \DomainException(
+                        'ไม่สามารถยกเลิกบิลนี้ได้ เพราะมีการรับชำระเงินแล้ว กรุณายกเลิกใบรับเงิน ' . $activeReceipt->receipt_no . ' ก่อน'
+                    );
+                }
+
+                foreach ($locked->items()->orderBy('product_id')->get() as $item) {
+                    Product::lockForUpdate()->findOrFail($item->product_id)
+                        ->increment('stock', $item->quantity);
+                }
+
+                $locked->update([
                     'status'      => 'voided',
                     'voided_at'   => now(),
                     'voided_by'   => auth()->id(),
@@ -205,10 +222,13 @@ class SaleController extends Controller
                 ]);
 
                 return redirect()->route('sales.history')
-                    ->with('success', 'ยกเลิกใบเสร็จ ' . $sale->invoice_no . ' สำเร็จ');
+                    ->with('success', 'ยกเลิกใบเสร็จ ' . $locked->invoice_no . ' สำเร็จ');
             });
-        } catch (\Exception $e) {
+        } catch (\DomainException $e) {
             return back()->with('error', $e->getMessage());
+        } catch (\Throwable $e) {
+            report($e);
+            return back()->with('error', 'เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง');
         }
     }
 }

@@ -58,7 +58,7 @@ class PurchaseOrderController extends Controller
                 });
 
                 // สร้างเลขที่ใบสั่งซื้ออัตโนมัติ (ตัวอย่าง: PO-20261020-A1B2)
-                $poNo = 'PO-' . date('Ymd') . '-' . strtoupper(Str::random(4));
+                $poNo = 'PO-' . date('Ymd') . '-' . strtoupper(Str::random(8));
 
                 // 3. บันทึกข้อมูลหัวบิลลงตาราง purchase_orders
                 $purchaseOrder = PurchaseOrder::create([
@@ -89,9 +89,9 @@ class PurchaseOrderController extends Controller
                 return redirect()->route('purchase-orders.index')
                     ->with('success', 'สร้างใบสั่งซื้อเลขที่ ' . $poNo . ' สำเร็จเรียบร้อยแล้ว');
             });
-        } catch (\Exception $e) {
-            // ถ้ามี Error ให้เด้งกลับไปหน้าเดิมพร้อมแจ้งเตือน
-            return back()->with('error', 'เกิดข้อผิดพลาด: ' . $e->getMessage())->withInput();
+        } catch (\Throwable $e) {
+            report($e);
+            return back()->with('error', 'เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง')->withInput();
         }
     }
 
@@ -151,11 +151,15 @@ class PurchaseOrderController extends Controller
 
     public function cancel(PurchaseOrder $purchaseOrder)
     {
-        if ($purchaseOrder->status !== 'pending') {
+        // อัปเดตแบบ atomic กันชนกับการรับของ
+        $updated = PurchaseOrder::where('id', $purchaseOrder->id)
+            ->where('status', 'pending')
+            ->update(['status' => 'cancelled']);
+
+        if (! $updated) {
             return back()->with('error', 'ไม่สามารถยกเลิกได้ เนื่องจาก PO นี้ไม่ใช่สถานะ pending');
         }
 
-        $purchaseOrder->update(['status' => 'cancelled']);
         return redirect()->route('purchase-orders.index')
             ->with('success', 'ยกเลิก PO ' . $purchaseOrder->po_no . ' สำเร็จ');
     }

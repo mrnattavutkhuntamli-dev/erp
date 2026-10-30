@@ -51,14 +51,12 @@ class QuotationController extends Controller
                 $subtotal = collect($validated['items'])->sum(fn($i) => $i['quantity'] * $i['price']);
                 $discount = $validated['discount'] ?? 0;
                 if ($discount > $subtotal) {
-                    throw new \Exception("ส่วนลดเกินยอดรวม");
+                    throw new \DomainException("ส่วนลดเกินยอดรวม");
                 }
                 $total = $subtotal - $discount;
 
                 // สร้างเลขที่ใบเสนอราคา
-                $dateStr    = date('Ymd');
-                $countToday = Quotation::whereDate('created_at', today())->count() + 1;
-                $quoteNo    = 'QT-' . $dateStr . '-' . str_pad($countToday, 4, '0', STR_PAD_LEFT);
+                $quoteNo = 'TMP-' . Str::uuid();   // เลขจริงอัปเดตจาก id ด้านล่าง (กันเลขชนกัน)
 
                 // บันทึกหัวเอกสาร
                 $quotation = Quotation::create([
@@ -74,6 +72,9 @@ class QuotationController extends Controller
                     'note'        => $validated['note'] ?? null,
                 ]);
 
+                $quoteNo = 'QT-' . date('Ymd') . '-' . str_pad($quotation->id, 6, '0', STR_PAD_LEFT);
+                $quotation->update(['quote_no' => $quoteNo]);
+
                 // บันทึกรายการสินค้า
                 foreach ($validated['items'] as $item) {
                     $quotation->items()->create([
@@ -87,8 +88,11 @@ class QuotationController extends Controller
                 return redirect()->route('quotations.show', $quotation->id)
                     ->with('success', 'สร้างใบเสนอราคา ' . $quoteNo . ' สำเร็จ!');
             });
-        } catch (\Exception $e) {
+        } catch (\DomainException $e) {
             return back()->with('error', $e->getMessage())->withInput();
+        } catch (\Throwable $e) {
+            report($e);
+            return back()->with('error', 'เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง')->withInput();
         }
     }
 
@@ -106,73 +110,14 @@ class QuotationController extends Controller
             'status' => 'required|in:draft,sent,rejected',
         ]);
 
+        if (in_array($quotation->status, ['accepted', 'expired'], true)) {
+            return back()->with('error', 'ไม่สามารถเปลี่ยนสถานะใบเสนอราคาที่เป็น ' . $quotation->status . ' แล้ว');
+        }
+
         $quotation->update(['status' => $request->status]);
 
         return back()->with('success', 'อัปเดตสถานะสำเร็จ!');
     }
-    /*
-    public function convertToSale(Quotation $quotation)
-    {
-
-
-        // ป้องกันการแปลงซ้ำ
-        if ($quotation->status === 'accepted') {
-            return back()->with('error', 'ใบเสนอราคานี้ถูกแปลงเป็นใบเสร็จแล้ว');
-        }
-
-        try {
-            return DB::transaction(function () use ($quotation) {
-                // ตรวจสอบสต็อกก่อน
-                foreach ($quotation->items as $item) {
-                    $product = Product::lockForUpdate()->findOrFail($item->product_id);
-                    if ($product->stock < $item->quantity) {
-                        throw new \Exception("สินค้า '{$product->name}' มีสต็อกไม่พอ (เหลือ {$product->stock})");
-                    }
-                }
-
-                // สร้างเลขที่ใบเสร็จ
-                $dateStr    = date('Ymd');
-                $countToday = Sale::whereDate('created_at', today())->count() + 1;
-                $invoiceNo  = 'INV-' . $dateStr . '-' . str_pad($countToday, 4, '0', STR_PAD_LEFT);
-
-                // สร้าง Sale
-                $sale = Sale::create([
-                    'invoice_no'      => $invoiceNo,
-                    'customer_id'     => $quotation->customer_id,
-                    'user_id'         => auth()->id(),
-                    'subtotal'        => $quotation->subtotal,
-                    'discount'        => $quotation->discount,
-                    'total'           => $quotation->total,
-                    'payment_method'  => 'cash', // ค่าเริ่มต้น
-                    'received_amount' => $quotation->total,
-                    'change_amount'   => 0,
-                    'status'          => 'completed',
-                ]);
-
-                // บันทึกรายการ + ตัดสต็อก
-                foreach ($quotation->items as $item) {
-                    $sale->items()->create([
-                        'product_id' => $item->product_id,
-                        'quantity'   => $item->quantity,
-                        'price'      => $item->price,
-                        'total'      => $item->total,
-                    ]);
-
-                    Product::find($item->product_id)->decrement('stock', $item->quantity);
-                }
-
-                // อัปเดตสถานะใบเสนอราคา
-                $quotation->update(['status' => 'accepted']);
-
-                return redirect()->route('sales.show', $sale->id)
-                    ->with('success', 'แปลงเป็นใบเสร็จ ' . $invoiceNo . ' สำเร็จ!');
-            });
-        } catch (\Exception $e) {
-            return back()->with('error', $e->getMessage());
-        }
-    }
-
-    */
         public function convertToSale(Request $request, Quotation $quotation)
     {
         $validated = $request->validate([
@@ -180,6 +125,10 @@ class QuotationController extends Controller
             'received_amount' => 'nullable|numeric|min:0',
             'idempotency_key' => 'nullable|uuid',
         ]);
+
+        if ($reason = \App\Models\CashierShift::sellBlockReason(auth()->user())) {
+            return back()->with('error', $reason);
+        }
 
         try {
             return DB::transaction(function () use ($validated, $quotation) {

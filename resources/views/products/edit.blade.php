@@ -92,8 +92,9 @@
                 </div>
 
                 <div>
-                    <label class="block text-gray-700 font-medium mb-2">จำนวนสต็อก <span class="text-red-500">*</span></label>
-                    <input type="number" name="stock" value="{{ old('stock', $product->stock) }}" required class="w-full border-gray-300 rounded-md shadow-sm p-2 border">
+                    <label class="block text-gray-700 font-medium mb-2">จำนวนสต็อก</label>
+                    <input type="number" value="{{ $product->stock }}" readonly disabled class="w-full border-gray-300 rounded-md shadow-sm p-2 border bg-gray-100 cursor-not-allowed">
+                    <p class="text-xs text-gray-500 mt-1">แก้สต็อกผ่านเมนู "ปรับปรุงสต็อก" เพื่อให้มีประวัติ</p>
                 </div>
             </div>
 

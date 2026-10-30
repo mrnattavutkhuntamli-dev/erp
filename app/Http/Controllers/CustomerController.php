@@ -41,14 +41,6 @@ class CustomerController extends Controller
     }
 
     /**
-     * Display the specified resource.
-     */
-    public function show(Customer $customer)
-    {
-        return view('customers.show', compact('customer'));
-    }
-
-    /**
      * Show the form for editing the specified resource.
      */
     public function edit(Customer $customer)
@@ -85,6 +77,10 @@ class CustomerController extends Controller
      */
     public function destroy(Customer $customer)
     {
+        if (\App\Models\Sale::where('customer_id', $customer->id)->exists()) {
+            return back()->with('error', 'ลบไม่ได้ เพราะมีบิลอ้างอิงลูกค้ารายนี้ (ให้ปิดใช้งานแทน)');
+        }
+
         $customer->delete();
         return redirect()->route('customers.index')->with('success', 'ลบข้อมูลลูกค้าสำเร็จ!');
     }

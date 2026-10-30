@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Models\Supplier;
-use GuzzleHttp\Promise\Create;
 use Illuminate\Http\Request;
 
 class SupplierController extends Controller
@@ -34,8 +33,8 @@ class SupplierController extends Controller
     {
         $validated = $request->validate([
             'name'         => 'required|string|max:255|unique:suppliers,name',
-            'contact_name' => 'required|string|max:255',
-            'phone'=>'nullable|string|max:10',
+            'contact_name' => 'nullable|string|max:255',
+            'phone'        => 'nullable|string|max:50',
             'email'        => 'nullable|email|max:255|unique:suppliers,email',
             'address' => 'nullable|string',
         ]);
@@ -43,14 +42,6 @@ class SupplierController extends Controller
         $validated['is_active'] = $request->has('is_active') ? true:false;
         Supplier::create($validated);
         return redirect()->route('suppliers.index')->with('success', 'เพิ่มซัพพลายเออร์สำเร็จ!');
-    }
-
-    /**
-     * Display the specified resource.
-     */
-    public function show(string $id)
-    {
-       return view('suppliers.show', compact('supplier'));
     }
 
     /**
@@ -83,6 +74,10 @@ class SupplierController extends Controller
      */
     public function destroy(Supplier $supplier)
     {
+        if ($supplier->purchaseOrders()->exists()) {
+            return back()->with('error', 'ลบไม่ได้ เพราะมีใบสั่งซื้ออ้างอิงอยู่ (แนะนำให้ปิดใช้งานแทน)');
+        }
+
         $supplier->delete();
         return redirect()->route('suppliers.index')->with('success', 'ลบซัพพลายเออร์สำเร็จ!');
     }

@@ -186,12 +186,12 @@ class ReceiptController extends Controller
             });
         } catch (ValidationException $e) {
             throw $e;
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             Log::error('Receipt void failed: ' . $e->getMessage(), [
                 'receipt_id' => $receipt->id,
                 'user_id'    => auth()->id(),
             ]);
-            return back()->with('error', 'ไม่สามารถยกเลิกได้: ' . $e->getMessage());
+            return back()->with('error', 'ไม่สามารถยกเลิกได้ กรุณาลองใหม่อีกครั้ง');
         }
     }
 

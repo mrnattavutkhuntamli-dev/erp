@@ -49,7 +49,7 @@ class ArAgingController extends Controller
         foreach ($unpaidSales as $sale) {
             // คำนวณยอดค้างชำระ (ปัดเศษทศนิยม 2 ตำแหน่ง และป้องกันติดลบ)
             $dueAmount   = round(max(0, $sale->total - $sale->paid_amount), 2);
-            $daysOverdue = (int) $now->diffInDays($sale->created_at);
+            $daysOverdue = (int) $sale->created_at->diffInDays($now);
 
             // จัดกลุ่มตามลูกค้า
             $customerId   = $sale->customer_id ?? 0;

@@ -6,6 +6,7 @@ use App\Models\StockDocument;
 use App\Models\Supplier;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class StockDocumentController extends Controller
 {
@@ -50,9 +51,7 @@ class StockDocumentController extends Controller
             return DB::transaction(function () use ($validated) {
                 // สร้างเอกสารอัตโนมัติ IN-20261018-0001
                 $prefix     = $validated['type'] === 'in' ? 'IN' : 'OUT';
-                $dateStr    = date('Ymd'); // ใช้จากวันที่เอกสาร
-                $countToday = StockDocument::whereDate('created_at', today())->count() + 1;
-                $docNo      = $prefix . '-' . $dateStr . '-' . str_pad($countToday, 4, '0', STR_PAD_LEFT);
+                $docNo      = 'TMP-' . Str::uuid(); // เลขจริงอัปเดตจาก id ด้านล่าง (กันเลขชนกัน)
 
                 $document   = StockDocument::create([
                     'doc_no'        => $docNo,
@@ -65,8 +64,11 @@ class StockDocumentController extends Controller
                     'user_id'       => auth()->id(), // พนักงานที่ล็อกอินอยู่
                 ]);
 
+                $docNo = $prefix . '-' . date('Ymd') . '-' . str_pad($document->id, 6, '0', STR_PAD_LEFT);
+                $document->update(['doc_no' => $docNo]);
+
                 // 3. วนลูปบันทึกรายการสินค้า (Details) และอัปเดตสต็อก
-                foreach ($validated['items'] as $item) {
+                foreach (collect($validated['items'])->sortBy('product_id') as $item) {
                     // ล็อกข้อมูลสินค้าไว้ป้องกันการแก้ไขซ้อนกัน
                     $product = Product::lockForUpdate()->findOrFail($item['product_id']);
 
@@ -77,7 +79,7 @@ class StockDocumentController extends Controller
 
                     // ถ้าเป็นการเบิกออก (out) และสต็อกไม่พอ ให้โยน Error กลับไป
                     if ($newStock < 0) {
-                        throw new \Exception("สินค้า '{$product->name}' มีสต็อกไม่เพียงพอ (คงเหลือ {$product->stock})");
+                        throw new \DomainException("สินค้า '{$product->name}' มีสต็อกไม่เพียงพอ (คงเหลือ {$product->stock})");
                     }
 
                     // อัปเดตสต็อกในตาราง products
@@ -92,9 +94,11 @@ class StockDocumentController extends Controller
                 }
                 return redirect()->route('stock-documents.show', $document->id)->with('success', 'สร้างเอกสาร ' . $docNo . 'สำเร็จ');
             });
-        } catch (\Exception $e) {
-            // ถ้ามี Error ให้เด้งกลับไปหน้าเดิมพร้อมแจ้งเตือน
+        } catch (\DomainException $e) {
             return back()->with('error', $e->getMessage())->withInput();
+        } catch (\Throwable $e) {
+            report($e);
+            return back()->with('error', 'เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง')->withInput();
         }
     }
 
@@ -133,39 +137,39 @@ class StockDocumentController extends Controller
 
     public function destroy(StockDocument $stockDocument)
     {
-        // ตรวจสอบว่ายกเลิกไปแล้วหรือยัง
-        if ($stockDocument->status === 'voided') {
-            return redirect()->route('stock-documents.index')->with('error', 'เอกสารนี้ถูกยกเลิกไปแล้ว');
-        }
-
         try {
             return DB::transaction(function () use ($stockDocument) {
-                // วนลูปรายการสินค้าในเอกสาร เพื่อคืนสต็อกกลับ
-                foreach ($stockDocument->items as $item) {
+                $doc = StockDocument::lockForUpdate()->findOrFail($stockDocument->id);
+
+                if ($doc->status === 'voided') {
+                    throw new \DomainException('เอกสารนี้ถูกยกเลิกไปแล้ว');
+                }
+
+                foreach ($doc->items()->orderBy('product_id')->get() as $item) {
                     $product = Product::lockForUpdate()->findOrFail($item->product_id);
 
-                    // ถ้าเป็นใบรับเข้า (in) ที่ผิด -> ต้องตัดสต็อกคืน
-                    // ถ้าเป็นใบเบิกออก (out) ที่ผิด -> ต้องบวกสต็อกคืน
-                    $newStock = $stockDocument->type === 'in'
+                    // ใบรับเข้า (in) -> ตัดสต็อกคืน / ใบเบิกออก (out) -> บวกสต็อกคืน
+                    $newStock = $doc->type === 'in'
                         ? $product->stock - $item->quantity
                         : $product->stock + $item->quantity;
 
-                    // ป้องกันสต็อกติดลบ (กรณีของถูกใช้ไปแล้ว)
                     if ($newStock < 0) {
-                        throw new \Exception("ไม่สามารถยกเลิกได้ สินค้า '{$product->name}' ถูกใช้ไปแล้ว (สต็อกจะติดลบ)");
+                        throw new \DomainException("ไม่สามารถยกเลิกได้ สินค้า '{$product->name}' ถูกใช้ไปแล้ว (สต็อกจะติดลบ)");
                     }
 
                     $product->update(['stock' => $newStock]);
                 }
 
-                // เปลี่ยนสถานะเอกสารเป็น 'voided'
-                $stockDocument->update(['status' => 'voided']);
+                $doc->update(['status' => 'voided']);
 
                 return redirect()->route('stock-documents.index')
-                    ->with('success', 'ยกเลิกเอกสาร ' . $stockDocument->doc_no . ' สำเร็จ และคืนสต็อกเรียบร้อย');
+                    ->with('success', 'ยกเลิกเอกสาร ' . $doc->doc_no . ' สำเร็จ และคืนสต็อกเรียบร้อย');
             });
-        } catch (\Exception $e) {
+        } catch (\DomainException $e) {
             return back()->with('error', $e->getMessage());
+        } catch (\Throwable $e) {
+            report($e);
+            return back()->with('error', 'เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง');
         }
     }
 

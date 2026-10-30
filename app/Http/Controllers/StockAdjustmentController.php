@@ -6,6 +6,7 @@ use App\Models\Product;
 use App\Models\StockAdjustment;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class StockAdjustmentController extends Controller
 {
@@ -49,17 +50,13 @@ class StockAdjustmentController extends Controller
 
                 // ป้องกันสต็อกติดลบ
                 if ($newStock < 0) {
-                    throw new \Exception("สต็อกไม่เพียงพอ (คงเหลือ {$stockBefore})");
+                    throw new \DomainException("สต็อกไม่เพียงพอ (คงเหลือ {$stockBefore})");
                 }
 
                 // สร้างเลขที่ใบปรับปรุง
-                $dateStr = date('Ymd');
-                $countToday = StockAdjustment::whereDate('created_at', today())->count() + 1;
-                $adjNo = 'ADJ-' . $dateStr . '-' . str_pad($countToday, 4, '0', STR_PAD_LEFT);
-
-                // บันทึกข้อมูล
-                StockAdjustment::create([
-                    'adj_no' => $adjNo,
+                // เลขชั่วคราว แล้วอัปเดตจาก id จริง (กันเลขชนกัน)
+                $adjustment = StockAdjustment::create([
+                    'adj_no' => 'TMP-' . Str::uuid(),
                     'product_id' => $product->id,
                     'user_id' => auth()->id(),
                     'type' => $validated['type'],
@@ -70,14 +67,20 @@ class StockAdjustmentController extends Controller
                     'note' => $validated['note'] ?? null,
                 ]);
 
+                $adjNo = 'ADJ-' . date('Ymd') . '-' . str_pad($adjustment->id, 6, '0', STR_PAD_LEFT);
+                $adjustment->update(['adj_no' => $adjNo]);
+
                 // อัปเดตสต็อก
                 $product->update(['stock' => $newStock]);
 
                 return redirect()->route('stock-adjustments.index')
                     ->with('success', 'ปรับปรุงสต็อกสำเร็จ! เลขที่ ' . $adjNo);
             });
-        } catch (\Exception $e) {
+        } catch (\DomainException $e) {
             return back()->with('error', $e->getMessage())->withInput();
+        } catch (\Throwable $e) {
+            report($e);
+            return back()->with('error', 'เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง')->withInput();
         }
     }
 }

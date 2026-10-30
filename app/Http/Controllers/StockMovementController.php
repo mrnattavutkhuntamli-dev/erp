@@ -23,6 +23,7 @@ class StockMovementController extends Controller
         // 1. ใบรับ/ใบเบิก
         $docs = DB::table('stock_document_items as i')
             ->join('stock_documents as d', 'd.id', '=', 'i.stock_document_id')
+            ->where('d.status', 'completed')
             ->whereBetween(DB::raw('DATE(d.date)'), [$startDate, $endDate])
             ->select([
                 'd.date as date',

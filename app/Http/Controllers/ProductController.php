@@ -135,7 +135,7 @@ class ProductController extends Controller
                 }
 
                 foreach ($request->file('images') as $index => $file) {
-                    $extension = $file->getClientOriginalExtension();
+                    $extension = $file->extension();
                     $filename  = Str::slug($product->sku) . '-' . ($index + 1) . '-' . time() . '.' . $extension;
                     // บันทึกไฟล์ด้วยชื่อใหม่ลงในโฟลเดอร์ที่กำหนด
                     $path = $file->storeAs($folder, $filename, 'public');
@@ -150,14 +150,6 @@ class ProductController extends Controller
             return redirect()->route('products.index')->with('success', 'เพิ่มข้อมูลสินค้าและบันทึกรูปภาพสำเร็จ!');
         });
 
-    }
-
-    /**
-     *  แสดงรายละเอียดสินค้า (อาจจะยังไม่ต้องใช้ตอนนี้)
-     */
-    public function show(Product $product)
-    {
-        return view('products.show', compact('product'));
     }
 
     /**
@@ -199,7 +191,7 @@ class ProductController extends Controller
             'car_models.*'     => 'exists:car_models,id',
             'images.*'         => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
             'delete_images'    => 'nullable|array',
-            'primary_image_id' => 'nullable|exists:product_images,id',
+            'primary_image_id' => ['nullable', \Illuminate\Validation\Rule::exists('product_images', 'id')->where('product_id', $product->id)],
         ]);
         // จัดการค่า Checkbox
         $validated['is_active'] = $request->has('is_active') ? true : false;
@@ -234,7 +226,7 @@ class ProductController extends Controller
                 $existingImagesCount = $product->images()->count();
 
                 foreach ($request->file('images') as $index => $file) {
-                    $extension = $file->getClientOriginalExtension();
+                    $extension = $file->extension();
                     // ตั้งชื่อไฟล์: [SKU]-[ลำดับ]-[เวลา].ext
                     $filename = Str::slug($product->sku) . '-' . ($existingImagesCount + $index + 1) . '-' . time() . '.' . $extension;
 
@@ -249,7 +241,6 @@ class ProductController extends Controller
                 }
             }
             // จัดการเปลี่ยนรูปหน้าปก (Primary Image) ถ้ามีการเลือกเปลี่ยน
-            $hasPrimary = $product->images()->where('is_primary', true)->exists();
             if ($request->filled('primary_image_id')) {
                 // ปรับรูปทั้งหมดของสินค้านี้ให้ไม่เป็น primary ก่อน
                 $product->images()->update(['is_primary' => false]);
