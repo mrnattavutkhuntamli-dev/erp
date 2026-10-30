@@ -1,20 +1,19 @@
 <?php
-
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
-use PragmaRX\Google2FA\Google2FA;
 use BaconQrCode\Renderer\ImageRenderer;
 use BaconQrCode\Renderer\Image\SvgImageBackEnd;
 use BaconQrCode\Renderer\RendererStyle\RendererStyle;
 use BaconQrCode\Writer;
+use Illuminate\Http\Request;
+use PragmaRX\Google2FA\Google2FA;
 
 class TwoFactorController extends Controller
 {
     // แสดงหน้าตั้งค่า 2FA (QR Code)
     public function show()
     {
-        $user = auth()->user();
+        $user      = auth()->user();
         $google2fa = new Google2FA();
 
         // ถ้าผู้ใช้ยังไม่มี secret ให้สร้างใหม่
@@ -35,7 +34,7 @@ class TwoFactorController extends Controller
             new RendererStyle(200),
             new SvgImageBackEnd()
         );
-        $writer = new Writer($renderer);
+        $writer    = new Writer($renderer);
         $qrCodeSvg = $writer->writeString($qrCodeUrl);
 
         return view('profile.two-factor', compact('qrCodeSvg', 'user'));
@@ -48,7 +47,7 @@ class TwoFactorController extends Controller
             'otp' => 'required|digits:6',
         ]);
 
-        $user = auth()->user();
+        $user      = auth()->user();
         $google2fa = new Google2FA();
 
         // ตรวจสอบรหัส OTP ว่าถูกต้องหรือไม่
@@ -65,11 +64,21 @@ class TwoFactorController extends Controller
     }
 
     // ปิดใช้งาน 2FA
-    public function disable()
+    public function disable(Request $request)
     {
+        $request->validate([
+            'password' => 'required',
+        ]);
+
         $user = auth()->user();
+
+        // ✅ ตรวจสอบรหัสผ่านก่อนปิด 2FA
+        if (! \Hash::check($request->password, $user->password)) {
+            return back()->withErrors(['password' => 'รหัสผ่านไม่ถูกต้อง']);
+        }
+
         $user->google2fa_enabled = false;
-        $user->google2fa_secret = null;
+        $user->google2fa_secret  = null;
         $user->save();
 
         return redirect()->route('profile.edit')->with('status', 'ปิดใช้งาน 2FA สำเร็จ!');

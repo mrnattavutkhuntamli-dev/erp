@@ -53,7 +53,7 @@ class SaleController extends Controller
         if ($validated['payment_method'] === 'credit' && empty($validated['customer_id'])) {
             return response()->json([
                 'success' => false,
-                'message' => 'ไม่สามารถขายเชื่อให้ลูกค้าทั่วไปได้ กรุณาเลือกลูกค้าที่มีข้อมูล'
+                'message' => 'ไม่สามารถขายเชื่อให้ลูกค้าทั่วไปได้ กรุณาเลือกลูกค้าที่มีข้อมูล',
             ], 422);
         }
         try {
@@ -84,15 +84,19 @@ class SaleController extends Controller
                     $subtotal  += $itemTotal;
 
                     $saleItemsData[] = [
-                        'product'  => $product,
-                        'quantity' => $item['quantity'],
-                        'price'    => $product->price,
-                        'total'    => $itemTotal,
+                        'product'      => $product,
+                        'quantity'     => $item['quantity'],
+                        'price'        => $product->price,
+                        'cost_at_sale' => $product->cost,
+                        'total'        => $itemTotal,
                     ];
                 }
 
                 $discount = $validated['discount'] ?? 0;
-                $total    = $subtotal - $discount;
+                if ($discount > $subtotal) {
+                    throw new \Exception("ส่วนลด (฿" . number_format($discount, 2) . ") เกินยอดรวม (฿" . number_format($subtotal, 2) . ")");
+                }
+                $total = $subtotal - $discount;
 
                 // ✅ ตรวจสอบ "ขายเชื่อ"
                 $isCredit = $validated['payment_method'] === 'credit';
@@ -120,7 +124,7 @@ class SaleController extends Controller
                     'subtotal'        => $subtotal,
                     'discount'        => $discount,
                     'total'           => $total,
-                    'payment_method'  => $isCredit ? 'cash' : $validated['payment_method'],
+                    'payment_method'  => $validated['payment_method'],
                     'payment_status'  => $isCredit ? 'unpaid' : 'paid',
                     'paid_amount'     => $isCredit ? 0 : $total,
                     'received_amount' => $received,
@@ -128,16 +132,21 @@ class SaleController extends Controller
                     'status'          => 'completed',
                     'idempotency_key' => $validated['idempotency_key'] ?? null,
                 ]);
+                // ✅ อัปเดตเลข INV จริงจาก ID
+                $sale->update([
+                    'invoice_no' => 'INV-' . date('Ymd') . '-' . str_pad($sale->id, 6, '0', STR_PAD_LEFT),
+                ]);
 
                 foreach ($saleItemsData as $data) {
                     $data['product']->decrement('stock', $data['quantity']);
                     $newStock = $data['product']->fresh()->stock;
                     $sale->items()->create([
-                        'product_id' => $data['product']->id,
-                        'quantity'   => $data['quantity'],
-                        'price'      => $data['price'],
-                        'total'      => $data['total'],
-                        'stock_after' => $newStock,
+                        'product_id'   => $data['product']->id,
+                        'quantity'     => $data['quantity'],
+                        'price'        => $data['price'],
+                        'cost_at_sale' => $data['cost_at_sale'],
+                        'total'        => $data['total'],
+                        'stock_after'  => $newStock,
                     ]);
                 }
 
@@ -164,12 +173,25 @@ class SaleController extends Controller
             return back()->with('error', 'ใบเสร็จนี้ถูกยกเลิกแล้ว');
         }
 
+        // ✅ ตรวจสอบว่ามี Receipt ที่ยัง Active อยู่หรือไม่
+        $activeReceipt = $sale->receipts()->where('status', 'active')->first();
+        if ($activeReceipt) {
+            return back()->with('error',
+                'ไม่สามารถยกเลิกบิลนี้ได้ เพราะมีการรับชำระเงินแล้ว ' .
+                'กรุณายกเลิกใบรับเงิน ' . $activeReceipt->receipt_no . ' ก่อน'
+            );
+        }
         $validated = $request->validate([
             'void_reason' => 'required|string|max:500',
         ]);
 
         try {
             return DB::transaction(function () use ($sale, $validated) {
+                // ✅ Lock แถว Sale ก่อนตรวจสอบซ้ำ (ป้องกันกดซ้ำพร้อมกัน)
+                $lockedSale = Sale::lockForUpdate()->findOrFail($sale->id);
+                if ($lockedSale->status === 'voided') {
+                    throw new \Exception('ใบเสร็จนี้ถูกยกเลิกแล้ว');
+                }
                 foreach ($sale->items as $item) {
                     $product = Product::lockForUpdate()->findOrFail($item->product_id);
                     $product->increment('stock', $item->quantity);

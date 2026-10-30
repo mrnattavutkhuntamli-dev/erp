@@ -3,7 +3,32 @@
 @section('title', 'ใบเสร็จรับเงิน')
 
 @section('content')
-    <div class="mx-auto max-w-2xl">
+    @php
+        $voided = $sale->status === 'voided';
+        $customer = $sale->customer;
+        $minRows = 8; // จำนวนแถวขั้นต่ำ เพื่อให้ตารางสูงเต็มหน้าเหมือนต้นแบบ
+        $emptyRows = max(0, $minRows - $sale->items->count());
+        $methodLabel = match ($sale->payment_method) {
+            'cash' => 'เงินสด',
+            'transfer' => 'โอนเงิน',
+            default => 'บัตรเครดิต',
+        };
+    @endphp
+
+    <style>
+        @media print {
+            @page { size: A4; margin: 0; }
+            body { background: #fff !important; }
+            .receipt-sheet { box-shadow: none !important; margin: 0 !important; width: 210mm !important; min-height: 297mm !important; }
+        }
+        .receipt-sheet { width: 100%; max-width: 794px; min-height: 1000px; }
+        .rc-table th { border: 1px solid #1f2937; background: #f3f4f6; padding: 6px 8px; font-size: 11px; font-weight: 600; text-align: center; }
+        .rc-table td.col { border-left: 1px solid #1f2937; border-right: 1px solid #1f2937; padding: 8px; font-size: 12px; vertical-align: top; }
+        .rc-table tr.last td.col { border-bottom: 1px solid #1f2937; }
+        .rc-label { font-weight: 600; color: #111827; }
+    </style>
+
+    <div class="mx-auto max-w-[794px]">
 
         <!-- ปุ่มควบคุม (ซ่อนเวลาพิมพ์) -->
         <div class="mb-4 flex flex-wrap items-center justify-between gap-3 print:hidden">
@@ -19,108 +44,170 @@
             </button>
         </div>
 
-        @php $voided = $sale->status === 'voided'; @endphp
+        <!-- กระดาษใบเสร็จ -->
+        <section class="receipt-sheet relative mx-auto flex flex-col bg-white px-10 py-10 text-slate-900 shadow-md ring-1 ring-slate-200 print:ring-0">
 
-        <!-- ใบเสร็จ -->
-        <section class="overflow-hidden rounded-xl bg-white ring-1 ring-slate-200 print:rounded-none print:ring-0">
+            @if ($voided)
+                <div class="pointer-events-none absolute inset-0 flex items-center justify-center">
+                    <span class="-rotate-12 rounded-xl border-4 border-red-500/60 px-8 py-2 text-6xl font-bold text-red-500/40">ยกเลิกแล้ว</span>
+                </div>
+            @endif
 
-            <!-- หัวใบเสร็จ -->
-            <div class="flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 px-6 py-5">
+            <!-- หัวเอกสาร -->
+            <header class="flex items-start justify-between">
                 <div>
-                    <h1 class="text-lg font-semibold text-slate-900">AutoPart ERP</h1>
-                    <p class="text-sm text-slate-500">123 ถนนสุขุมวิท กรุงเทพฯ | โทร: 02-123-4567</p>
-                    <p class="text-sm text-slate-500">เลขประจำตัวผู้เสียภาษี: 1234567890123</p>
+                    <h1 class="text-2xl font-bold leading-tight">ใบเสร็จรับเงิน</h1>
+                    <p class="text-lg text-slate-600">Receipt</p>
                 </div>
-                @if ($voided)
-                    <span class="inline-flex rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-semibold text-red-700">ยกเลิกแล้ว</span>
-                @endif
-            </div>
+                <div class="flex items-center gap-3">
+                    <div class="flex h-12 w-12 items-center justify-center rounded-md bg-slate-700 text-white">
+                        <svg class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 17l6-6 4 4 8-8M14 7h7v7"/></svg>
+                    </div>
+                    <div class="leading-tight">
+                        <p class="text-lg font-bold tracking-wide">AUTOPART</p>
+                        <p class="text-lg font-bold tracking-wide">ERP CO.</p>
+                    </div>
+                </div>
+            </header>
 
-            <!-- ข้อมูลใบเสร็จ -->
-            <div class="grid gap-4 border-b border-slate-200 bg-slate-50 px-6 py-4 text-sm sm:grid-cols-3">
-                <div>
-                    <p class="text-slate-500">เลขที่ใบเสร็จ</p>
-                    <p class="font-medium text-slate-900">{{ $sale->invoice_no }}</p>
-                </div>
-                <div>
-                    <p class="text-slate-500">วันที่</p>
-                    <p class="font-medium text-slate-900">{{ $sale->created_at->format('d/m/Y H:i') }}</p>
-                </div>
-                <div>
-                    <p class="text-slate-500">ลูกค้า</p>
-                    <p class="font-medium text-slate-900">{{ $sale->customer->name ?? 'ลูกค้าทั่วไป' }}</p>
-                    @if ($sale->customer && $sale->customer->license_plate)
-                        <p class="mt-0.5 text-xs text-sky-700">ทะเบียนรถ: {{ $sale->customer->license_plate }}</p>
+            <!-- ลูกค้า + เลขที่/วันที่ -->
+            <div class="mt-6 flex justify-between gap-6 text-sm">
+                <div class="space-y-1">
+                    <p><span class="rc-label">ลูกค้า:</span> {{ $customer->name ?? 'ลูกค้าทั่วไป' }}</p>
+                    <p><span class="rc-label">ที่อยู่:</span> {{ $customer->address ?? '-' }}</p>
+                    @if ($customer && $customer->license_plate)
+                        <p><span class="rc-label">ทะเบียนรถ:</span> {{ $customer->license_plate }}</p>
                     @endif
                 </div>
+                <div class="space-y-1 text-right sm:min-w-[200px]">
+                    <p class="flex justify-between gap-6"><span class="rc-label">เลขที่:</span> <span>{{ $sale->invoice_no }}</span></p>
+                    <p class="flex justify-between gap-6"><span class="rc-label">วันที่:</span> <span>{{ $sale->created_at->format('d/m/Y H:i') }}</span></p>
+                </div>
             </div>
 
-            <!-- รายการสินค้า -->
-            <div class="overflow-x-auto">
-                <table class="w-full text-left text-sm">
-                    <thead class="bg-slate-50 text-slate-500">
+            <div class="my-4 border-t border-dotted border-slate-400"></div>
+
+            <!-- ผู้ออกใบเสร็จ -->
+            <div class="flex justify-between gap-6 text-sm">
+                <div class="space-y-1">
+                    <p><span class="rc-label">ผู้ออก:</span> AutoPart ERP</p>
+                    <p><span class="rc-label">ที่อยู่:</span> 123 ถนนสุขุมวิท กรุงเทพฯ</p>
+                </div>
+                <div class="space-y-1 text-right sm:min-w-[240px]">
+                    <p class="flex justify-between gap-6"><span class="rc-label">โทร:</span> <span>02-123-4567</span></p>
+                    <p class="flex justify-between gap-6"><span class="rc-label">เลขประจำตัวผู้เสียภาษี:</span> <span>1234567890123</span></p>
+                </div>
+            </div>
+
+            <!-- ตารางรายการ -->
+            <div class="mt-5 overflow-x-auto">
+                <table class="rc-table w-full border-collapse">
+                    <thead>
                         <tr>
-                            <th class="px-6 py-3 font-medium">รายการ</th>
-                            <th class="px-6 py-3 font-medium text-center">จำนวน</th>
-                            <th class="px-6 py-3 font-medium text-right">ราคา</th>
-                            <th class="px-6 py-3 font-medium text-right">รวม</th>
+                            <th class="w-14">ลำดับ</th>
+                            <th>รายละเอียด</th>
+                            <th class="w-16">จำนวน</th>
+                            <th class="w-24">ราคา<br>ต่อหน่วย</th>
+                            <th class="w-20">ส่วนลด</th>
+                            <th class="w-28">รวมเป็นเงิน</th>
                         </tr>
                     </thead>
-                    <tbody class="divide-y divide-slate-100">
-                        @foreach ($sale->items as $item)
+                    <tbody>
+                        @foreach ($sale->items as $i => $item)
                             <tr>
-                                <td class="px-6 py-3 font-medium text-slate-900">{{ $item->product->name }}</td>
-                                <td class="px-6 py-3 text-center text-slate-500">{{ $item->quantity }}</td>
-                                <td class="px-6 py-3 text-right text-slate-500">฿{{ number_format($item->price, 2) }}</td>
-                                <td class="px-6 py-3 text-right font-medium text-slate-900">฿{{ number_format($item->total, 2) }}</td>
+                                <td class="col text-center">{{ $i + 1 }}</td>
+                                <td class="col text-center">{{ $item->product->name }}</td>
+                                <td class="col text-center">{{ $item->quantity }}</td>
+                                <td class="col text-right">{{ number_format($item->price, 2) }}</td>
+                                <td class="col text-center">-</td>
+                                <td class="col text-right">{{ number_format($item->total, 2) }}</td>
                             </tr>
                         @endforeach
+                        @for ($r = 0; $r < $emptyRows; $r++)
+                            <tr>
+                                @for ($c = 0; $c < 6; $c++)
+                                    <td class="col">&nbsp;</td>
+                                @endfor
+                            </tr>
+                        @endfor
+                        <tr class="last">
+                            @for ($c = 0; $c < 6; $c++)
+                                <td class="col" style="padding:0;height:0"></td>
+                            @endfor
+                        </tr>
                     </tbody>
                 </table>
             </div>
 
-            <!-- สรุปยอด -->
-            <div class="space-y-1.5 border-t border-slate-200 px-6 py-4 text-sm">
-                <div class="flex justify-between">
-                    <span class="text-slate-500">ยอดรวม</span>
-                    <span class="text-slate-900">฿{{ number_format($sale->subtotal, 2) }}</span>
+            <!-- หมายเหตุ + สรุปยอด -->
+            <div class="mt-3 flex items-start justify-between gap-6">
+                <div class="text-xs">
+                    <span class="rc-label">หมายเหตุ</span>
+                    <p class="mt-1 text-slate-600">สินค้าซื้อแล้วไม่รับคืน/เปลี่ยน (ยกเว้นกรณีชำรุดจากผู้ผลิต)</p>
                 </div>
-                <div class="flex justify-between">
-                    <span class="text-slate-500">ส่วนลด</span>
-                    <span class="text-slate-900">-฿{{ number_format($sale->discount, 2) }}</span>
-                </div>
-                <div class="flex items-center justify-between border-t border-slate-200 pt-3 mt-2">
-                    <span class="font-semibold text-slate-900">ยอดสุทธิ</span>
-                    <span class="text-xl font-semibold text-slate-900">฿{{ number_format($sale->total, 2) }}</span>
-                </div>
+
+                <table class="w-[300px] shrink-0 border-collapse text-xs">
+                    <tr>
+                        <td class="border border-slate-800 bg-slate-100 px-3 py-1.5 text-right font-semibold">ราคารวมสินค้า (บาท)</td>
+                        <td class="w-24 border border-slate-800 px-3 py-1.5 text-right">{{ number_format($sale->subtotal, 2) }}-</td>
+                    </tr>
+                    <tr>
+                        <td class="border border-slate-800 bg-slate-100 px-3 py-1.5 text-right font-semibold">ส่วนลด</td>
+                        <td class="border border-slate-800 px-3 py-1.5 text-right">{{ number_format($sale->discount, 2) }}-</td>
+                    </tr>
+                    <tr>
+                        <td class="border border-slate-800 bg-slate-100 px-3 py-2 text-right text-sm font-bold">จำนวนเงินรวมทั้งสิ้น (บาท)</td>
+                        <td class="border border-slate-800 px-3 py-2 text-right text-sm font-bold">{{ number_format($sale->total, 2) }}-</td>
+                    </tr>
+                </table>
             </div>
 
-            <!-- การชำระเงิน -->
-            <div class="space-y-1.5 border-t border-slate-200 bg-slate-50 px-6 py-4 text-sm">
-                <div class="flex items-center justify-between">
-                    <span class="text-slate-500">วิธีชำระ</span>
-                    @if ($sale->payment_method == 'cash')
-                        <span class="inline-flex rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-medium text-emerald-700">เงินสด</span>
-                    @elseif ($sale->payment_method == 'transfer')
-                        <span class="inline-flex rounded-full bg-sky-100 px-2.5 py-0.5 text-xs font-medium text-sky-700">โอนเงิน</span>
-                    @else
-                        <span class="inline-flex rounded-full bg-violet-100 px-2.5 py-0.5 text-xs font-medium text-violet-700">บัตรเครดิต</span>
-                    @endif
-                </div>
-                <div class="flex justify-between">
-                    <span class="text-slate-500">รับเงินมา</span>
-                    <span class="text-slate-900">฿{{ number_format($sale->received_amount, 2) }}</span>
-                </div>
-                <div class="flex justify-between">
-                    <span class="text-slate-500">เงินทอน</span>
-                    <span class="font-medium text-slate-900">฿{{ number_format($sale->change_amount, 2) }}</span>
-                </div>
-            </div>
+            <!-- ข้อมูลการชำระเงิน + ลายเซ็น -->
+            <div class="mt-auto pt-8">
+                <div class="grid grid-cols-1 gap-6 text-xs sm:grid-cols-[1.3fr_1fr_1fr]">
 
-            <!-- ท้ายใบเสร็จ -->
-            <div class="border-t border-slate-200 px-6 py-5 text-center text-xs text-slate-500">
-                <p class="text-sm font-medium text-slate-700">ขอบคุณที่ใช้บริการ</p>
-                <p class="mt-1">สินค้าซื้อแล้วไม่รับคืน/เปลี่ยน (ยกเว้นกรณีชำรุดจากผู้ผลิต)</p>
+                    <div class="space-y-2">
+                        <p class="text-sm font-bold">ข้อมูลการชำระเงิน</p>
+
+                        <label class="flex items-center gap-2">
+                            <input type="checkbox" disabled {{ $sale->payment_method == 'cash' ? 'checked' : '' }} class="h-4 w-4 rounded border-slate-400 text-slate-900">
+                            <span class="font-semibold">เงินสด</span>
+                            @if ($sale->payment_method == 'cash')
+                                <span class="text-slate-600">รับเงินมา ฿{{ number_format($sale->received_amount, 2) }} / ทอน ฿{{ number_format($sale->change_amount, 2) }}</span>
+                            @endif
+                        </label>
+
+                        <label class="flex items-center gap-2">
+                            <input type="checkbox" disabled {{ $sale->payment_method == 'transfer' ? 'checked' : '' }} class="h-4 w-4 rounded border-slate-400 text-slate-900">
+                            <span class="font-semibold">โอนเงิน</span>
+                            @if ($sale->payment_method == 'transfer')
+                                <span class="text-slate-600">฿{{ number_format($sale->received_amount, 2) }}</span>
+                            @endif
+                        </label>
+
+                        <label class="flex items-center gap-2">
+                            <input type="checkbox" disabled {{ !in_array($sale->payment_method, ['cash', 'transfer']) ? 'checked' : '' }} class="h-4 w-4 rounded border-slate-400 text-slate-900">
+                            <span class="font-semibold">บัตรเครดิต</span>
+                            @if (!in_array($sale->payment_method, ['cash', 'transfer']))
+                                <span class="text-slate-600">฿{{ number_format($sale->received_amount, 2) }}</span>
+                            @endif
+                        </label>
+                    </div>
+
+                    <div class="flex flex-col items-center justify-end">
+                        <div class="w-full border-b border-dotted border-slate-500"></div>
+                        <p class="mt-2 font-medium">ผู้รับเงิน</p>
+                        <p class="text-slate-500">วันที่ {{ $sale->created_at->format('d/m/Y') }}</p>
+                    </div>
+
+                    <div class="flex flex-col items-center justify-end">
+                        <div class="w-full border-b border-dotted border-slate-500"></div>
+                        <p class="mt-2 font-medium">ผู้ชำระเงิน</p>
+                        <p class="text-slate-500">วันที่ ......................</p>
+                    </div>
+                </div>
+
+                <p class="mt-6 text-center text-xs text-slate-500">ขอบคุณที่ใช้บริการ</p>
             </div>
         </section>
     </div>

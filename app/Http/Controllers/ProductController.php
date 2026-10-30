@@ -44,7 +44,7 @@ class ProductController extends Controller
                 'brands.name as brand_name',
                 'product_images.image_path as primary_image_path'
             )
-            // ค้นหาจากชื่อสินค้า / SKU / ยี่ห้อ (escape ตัวอักษรพิเศษของ LIKE ก่อน)
+        // ค้นหาจากชื่อสินค้า / SKU / ยี่ห้อ (escape ตัวอักษรพิเศษของ LIKE ก่อน)
             ->when($search !== '', function ($query) use ($search) {
                 $like = '%' . addcslashes($search, '\\%_') . '%';
                 $query->where(function ($w) use ($like) {
@@ -53,7 +53,7 @@ class ProductController extends Controller
                         ->orWhere('brands.name', 'like', $like);
                 });
             })
-            // กรองตามหมวดหมู่
+        // กรองตามหมวดหมู่
             ->when(filled($categoryId), function ($query) use ($categoryId) {
                 $query->where('products.category_id', $categoryId);
             })
@@ -110,9 +110,16 @@ class ProductController extends Controller
         $validated['is_active'] = $request->has('is_active') ? true : false;
 
         return DB::transaction(function () use ($request, $validated) {
-            $validated['sku'] = Product::generateSku();
+
+            $validated['sku'] = 'TMP-' . \Illuminate\Support\Str::uuid();
+            // $validated['sku'] = Product::generateSku();
             // บันทึกข้อมูลสินค้าลงตาราง products ก่อน เพื่อให้ได้ $product->id และ $product->sku มาใช้
             $product = Product::create($validated);
+
+            // ✅ อัปเดต SKU จริงจาก ID (ไม่มีทางซ้ำ)
+            $product->update([
+                'sku' => 'PRD-' . str_pad($product->id, 6, '0', STR_PAD_LEFT),
+            ]);
 
             if ($request->has('car_models')) {
                 $product->carModels()->sync($request->car_models);
@@ -198,7 +205,7 @@ class ProductController extends Controller
         $validated['is_active'] = $request->has('is_active') ? true : false;
         return DB::transaction(function () use ($request, $product, $validated) {
             $product->update($validated);
-             // อัปเดตความสัมพันธ์รุ่นรถ (sync จะลบของเก่าที่ไม่ถูกเลือกออกและเพิ่มของใหม่ให้อัตโนมัติ)
+            // อัปเดตความสัมพันธ์รุ่นรถ (sync จะลบของเก่าที่ไม่ถูกเลือกออกและเพิ่มของใหม่ให้อัตโนมัติ)
             if ($request->has('car_models')) {
                 $product->carModels()->sync($request->car_models);
             } else {
@@ -259,19 +266,37 @@ class ProductController extends Controller
         });
     }
 
+    public function toggleActive(Product $product)
+    {
+        $product->update(['is_active' => ! $product->is_active]);
+        return back()->with('success', 'เปลี่ยนสถานะสินค้าสำเร็จ');
+    }
+
     /**
      * Remove the specified resource from storage.
      */
     public function destroy(Product $product)
     {
-        // ลบไฟล์รูปภาพออกจาก Storage ก่อน
-        foreach ($product->images as $image) {
-            Storage::disk('public')->delete($image->image_path);
+        // ✅ 1. ตรวจสอบว่าสินค้านี้ถูกใช้งานในบิลหรือไม่
+        $hasSaleItems   = $product->saleItems()->exists();
+        $hasStockDocs   = $product->stockDocumentItems()->exists();
+        $hasPOs         = $product->purchaseOrderItems()->exists();
+        $hasAdjustments = $product->stockAdjustments()->exists();
+
+        if ($hasSaleItems || $hasStockDocs || $hasPOs || $hasAdjustments) {
+            return back()->with('error', 'ไม่สามารถลบสินค้านี้ได้ เนื่องจากมีประวัติการใช้งานอยู่ (แนะนำให้ปิดการใช้งานแทน)');
         }
 
-        // ลบข้อมูลในฐานข้อมูล (รูปภาพจะถูกลบตามเพราะ cascadeOnDelete)
+        // ✅ 2. ลบไฟล์รูปภาพก่อน
+        foreach ($product->images as $image) {
+            if (\Storage::disk('public')->exists($image->image_path)) {
+                \Storage::disk('public')->delete($image->image_path);
+            }
+        }
+
+        // ✅ 3. ลบสินค้า (รูปภาพจะถูกลบตามด้วย cascade)
         $product->delete();
 
-        return redirect()->route('products.index')->with('success', 'ลบสินค้าสำเร็จ!');
+        return redirect()->route('products.index')->with('success', 'ลบสินค้าสำเร็จ');
     }
 }

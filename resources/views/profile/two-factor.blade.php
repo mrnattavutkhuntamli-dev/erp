@@ -18,10 +18,31 @@
                     </div>
                     <h2 class="text-xl font-bold text-slate-800 mb-2">2FA เปิดใช้งานอยู่</h2>
                     <p class="text-slate-500 mb-6">บัญชีของคุณได้รับการปกป้องด้วย Two-Factor Authentication</p>
-                    <form action="{{ route('two-factor.disable') }}" method="POST">
+
+                    {{-- ✅ เพิ่มส่วนกรอกรหัสผ่านก่อนปิด 2FA --}}
+                    <form action="{{ route('two-factor.disable') }}" method="POST" class="max-w-sm mx-auto">
                         @csrf
-                        <button type="submit" class="bg-red-500 text-white px-6 py-2 rounded-lg hover:bg-red-600 shadow" onclick="return confirm('คุณแน่ใจหรือไม่ว่าต้องการปิด 2FA?')">
-                            ปิดใช้งาน 2FA
+
+                        @if ($errors->has('password'))
+                            <div class="bg-red-100 text-red-700 p-3 mb-4 rounded text-sm text-left">
+                                {{ $errors->first('password') }}
+                            </div>
+                        @endif
+
+                        <div class="mb-4 text-left">
+                            <label class="block text-sm font-medium text-slate-700 mb-2">
+                                ยืนยันรหัสผ่านเพื่อปิด 2FA <span class="text-red-500">*</span>
+                            </label>
+                            <input type="password" name="password" required
+                                   placeholder="กรอกรหัสผ่านของคุณ"
+                                   class="w-full border border-slate-300 p-3 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500">
+                            <p class="text-xs text-slate-500 mt-1">เพื่อความปลอดภัย กรุณากรอกรหัสผ่านก่อนปิด 2FA</p>
+                        </div>
+
+                        <button type="submit"
+                                class="w-full bg-red-500 text-white px-6 py-3 rounded-lg hover:bg-red-600 shadow font-bold"
+                                onclick="return confirm('คุณแน่ใจหรือไม่ว่าต้องการปิด 2FA?')">
+                            🔓 ปิดใช้งาน 2FA
                         </button>
                     </form>
                 </div>

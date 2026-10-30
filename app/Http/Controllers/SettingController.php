@@ -1,5 +1,4 @@
 <?php
-
 namespace App\Http\Controllers;
 
 use App\Models\Setting;
@@ -20,7 +19,7 @@ class SettingController extends Controller
         ];
 
         // 2. ดึง Settings อื่นๆ (พร้อมสถานะ is_active)
-        $companyKeys = array_keys($companySettings);
+        $companyKeys   = array_keys($companySettings);
         $otherSettings = Setting::whereNotIn('key', $companyKeys)->orderBy('key')->get();
 
         return view('settings.index', compact('companySettings', 'otherSettings'));
@@ -33,7 +32,7 @@ class SettingController extends Controller
             'company_address' => 'nullable|string|max:500',
             'company_phone'   => 'nullable|string|max:50',
             'company_tax_id'  => 'nullable|string|max:20',
-            'company_logo'    => 'nullable|image|mimes:jpeg,png,jpg,gif,svg|max:2048',
+            'company_logo'    => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
         ]);
 
         foreach ($validated as $key => $value) {
@@ -48,7 +47,7 @@ class SettingController extends Controller
                 Storage::disk('public')->delete('logo/' . $oldLogo);
             }
 
-            $file = $request->file('company_logo');
+            $file     = $request->file('company_logo');
             $filename = 'logo_' . time() . '.' . $file->getClientOriginalExtension();
             $file->storeAs('logo', $filename, 'public');
             Setting::set('company_logo', $filename);
@@ -66,8 +65,8 @@ class SettingController extends Controller
         ]);
 
         Setting::create([
-            'key' => $validated['key'],
-            'value' => $validated['value'],
+            'key'       => $validated['key'],
+            'value'     => $validated['value'],
             'is_active' => true,
         ]);
         cache()->forget('setting.' . $validated['key']);
@@ -93,7 +92,7 @@ class SettingController extends Controller
     public function toggleActive($key)
     {
         $setting = Setting::where('key', $key)->firstOrFail();
-        $setting->update(['is_active' => !$setting->is_active]);
+        $setting->update(['is_active' => ! $setting->is_active]);
         cache()->forget('setting.' . $key);
 
         return redirect()->route('settings.index')->with('success', 'เปลี่ยนสถานะการตั้งค่าสำเร็จ!');

@@ -1,5 +1,4 @@
 <?php
-
 namespace App\Http\Controllers;
 
 use App\Models\Product;
@@ -32,8 +31,7 @@ class ReportController extends Controller
             $q->whereBetween(DB::raw('DATE(created_at)'), [$startDate, $endDate])
                 ->where('status', 'completed');
         })
-            ->join('products', 'sale_items.product_id', '=', 'products.id')
-            ->selectRaw('SUM(sale_items.total - (products.cost * sale_items.quantity)) as profit')
+            ->selectRaw('SUM(sale_items.total - (sale_items.cost_at_sale * sale_items.quantity)) as profit')
             ->value('profit') ?? 0;
 
         // 4. สินค้าขายดี 10 อันดับ
@@ -101,7 +99,7 @@ class ReportController extends Controller
             ->get()
             ->map(function ($item) {
                 return [
-                    'name' => $item->product->category->name ?? 'ไม่มีหมวดหมู่',
+                    'name'  => $item->product->category->name ?? 'ไม่มีหมวดหมู่',
                     'total' => $item->total_revenue,
                 ];
             });
@@ -128,8 +126,7 @@ class ReportController extends Controller
             $q->whereBetween(DB::raw('DATE(created_at)'), [$startDate, $endDate])
                 ->where('status', 'completed');
         })
-            ->join('products', 'sale_items.product_id', '=', 'products.id')
-            ->selectRaw('SUM(sale_items.total - (products.cost * sale_items.quantity)) as profit')
+            ->selectRaw('SUM(sale_items.total - (sale_items.cost_at_sale * sale_items.quantity)) as profit')
             ->value('profit') ?? 0;
 
         $topProducts = SaleItem::select('product_id',
@@ -151,9 +148,9 @@ class ReportController extends Controller
 
         // โหลด View PDF
         $pdf = Pdf::setOption([
-            'fontDir' => storage_path('fonts'),
-            'fontCache' => storage_path('fonts'),
-            'tempDir' => storage_path('fonts'),
+            'fontDir'     => storage_path('fonts'),
+            'fontCache'   => storage_path('fonts'),
+            'tempDir'     => storage_path('fonts'),
             'defaultFont' => 'sans-serif',
         ]);
 

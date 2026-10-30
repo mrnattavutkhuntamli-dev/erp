@@ -18,6 +18,7 @@ return new class extends Migration
 
             $table->integer('quantity');
             $table->decimal('price', 12, 2); // ราคาขาย ณ ตอนที่ขาย
+             $table->decimal('cost_at_sale', 12, 2)->default(0); // ✅ เพิ่ม (ต้นทุน ณ ตอนขาย)
             $table->decimal('total', 12, 2); // ราคารวม (quantity * price)
             $table->timestamps();
         });

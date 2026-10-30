@@ -6,17 +6,40 @@
         <!-- ปุ่มควบคุม -->
         <div class="flex justify-between items-center mb-6 print:hidden">
             <a href="{{ route('purchase-orders.index') }}" class="text-blue-600 hover:underline">&larr; กลับไปหน้ารายการ</a>
-            <button onclick="window.print()" class="bg-slate-800 text-white px-4 py-2 rounded-lg shadow hover:bg-slate-900">🖨️ พิมพ์เอกสาร</button>
+            <div class="flex gap-2">
+                {{-- ✅ ปุ่มลบ (แสดงเฉพาะ Pending) --}}
+                @if($purchaseOrder->status === 'pending')
+                    <form action="{{ route('purchase-orders.destroy', $purchaseOrder->id) }}" method="POST"
+                          onsubmit="return confirm('ยืนยันการลบ PO? (แนะนำให้ใช้การยกเลิกแทน)');">
+                        @csrf
+                        @method('DELETE')
+                        <button type="submit" class="bg-red-500 text-white px-4 py-2 rounded-lg shadow hover:bg-red-600">
+                            🗑️ ลบ PO
+                        </button>
+                    </form>
+                @endif
+                <button onclick="window.print()" class="bg-slate-800 text-white px-4 py-2 rounded-lg shadow hover:bg-slate-900">
+                    🖨️ พิมพ์เอกสาร
+                </button>
+            </div>
         </div>
 
         <!-- เอกสาร PO -->
         <div class="bg-white p-10 rounded-xl shadow-md border border-slate-200 print:shadow-none print:border-none print:p-0">
-            <!-- Header -->
+            <!-- Header (ใช้ข้อมูลจาก Settings) -->
             <div class="flex justify-between items-start border-b-2 border-slate-800 pb-6 mb-6">
-                <div>
-                    <h1 class="text-3xl font-extrabold text-slate-800">🚗 AutoPart ERP</h1>
-                    <p class="text-slate-500 text-sm mt-1">ร้านขายอะไหล่รถยนต์ครบวงจร</p>
-                    <p class="text-slate-500 text-sm">123 ถนนสุขุมวิท กรุงเทพฯ | โทร: 02-123-4567</p>
+                <div class="flex items-center gap-4">
+                    @if(\App\Models\Setting::get('company_logo'))
+                        <img src="{{ asset('storage/logo/' . \App\Models\Setting::get('company_logo')) }}"
+                             alt="Logo" class="h-16 w-auto object-contain">
+                    @endif
+                    <div>
+                        <h1 class="text-2xl font-extrabold text-slate-800">
+                            {{ \App\Models\Setting::get('company_name', 'AutoPart ERP') }}
+                        </h1>
+                        <p class="text-slate-500 text-sm mt-1">{{ \App\Models\Setting::get('company_address') }}</p>
+                        <p class="text-slate-500 text-sm">โทร: {{ \App\Models\Setting::get('company_phone') }}</p>
+                    </div>
                 </div>
                 <div class="text-right">
                     <h2 class="text-2xl font-bold text-blue-600">ใบสั่งซื้อ (PO)</h2>
@@ -88,7 +111,7 @@
                 </div>
             @endif
 
-            <!-- ปุ่มรับของ / ยกเลิก -->
+            <!-- ปุ่มรับของ / ยกเลิก (เฉพาะ Pending) -->
             @if($purchaseOrder->status === 'pending')
                 <div class="mt-8 flex justify-end space-x-3 print:hidden">
                     <form action="{{ route('purchase-orders.cancel', $purchaseOrder->id) }}" method="POST" onsubmit="return confirm('ยืนยันการยกเลิก PO?');">

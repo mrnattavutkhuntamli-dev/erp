@@ -3,6 +3,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Product;
 use App\Models\PurchaseOrder;
+use App\Models\StockDocument;
 use App\Models\Supplier;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -105,27 +106,47 @@ class PurchaseOrderController extends Controller
 
     public function receive(PurchaseOrder $purchaseOrder)
     {
-        if ($purchaseOrder->status !== 'pending') {
-            return back()->with('error', 'ไม่สามารถรับของได้ เนื่องจาก PO นี้สถานะเป็น ' . $purchaseOrder->status . ' แล้ว');
-        }
+        return DB::transaction(function () use ($purchaseOrder) {
+            $po = PurchaseOrder::lockForUpdate()->findOrFail($purchaseOrder->id);
 
-        try {
-            return DB::transaction(function () use ($purchaseOrder) {
-                // เพิ่มสต็อกสินค้าทุกชิ้น
-                foreach ($purchaseOrder->items as $item) {
-                    $product = Product::lockForUpdate()->findOrFail($item->product_id);
-                    $product->increment('stock', $item->quantity);
-                }
+            if ($po->status !== 'pending') {
+                return back()->with('error', 'ไม่สามารถรับของได้ เนื่องจาก PO นี้สถานะเป็น ' . $po->status . ' แล้ว');
+            }
 
-                // อัปเดตสถานะ
-                $purchaseOrder->update(['status' => 'received']);
+            //สร้าง Stockdocument
+            $stockDoc = StockDocument::create([
+                'doc_no'        => 'IN-PO-' . $po->po_no,
+                'type'          => 'in',
+                'date'          => now()->toDateString(),
+                'receiver_name' => 'รับจาก ' . $po->supplier->name,
+                'note'          => 'รับของจาก PO ' . $po->po_no,
+                'user_id'       => auth()->id(),
+                'status'        => 'completed',
+            ]);
 
-                return redirect()->route('purchase-orders.show', $purchaseOrder->id)
-                    ->with('success', 'รับของและเพิ่มสต็อกเรียบร้อยแล้ว!');
-            });
-        } catch (\Exception $e) {
-            return back()->with('error', $e->getMessage());
-        }
+            foreach ($po->items as $item) {
+                $product  = Product::lockForUpdate()->findOrFail($item->product_id);
+                $oldStock = $product->stock;
+                // ✅ เพิ่มสต็อก
+                $product->increment('stock', $item->quantity);
+                $newStock = $product->fresh()->stock;
+
+                // ✅ อัปเดตต้นทุนล่าสุด (ใช้ราคาทุนจาก PO)
+                $product->update(['cost' => $item->unit_cost]);
+
+                // ✅ บันทึกรายการใน StockDocument
+                $stockDoc->items()->create([
+                    'product_id'  => $product->id,
+                    'quantity'    => $item->quantity,
+                    'stock_after' => $newStock,
+                ]);
+            }
+
+            $po->update(['status' => 'received']);
+
+            return redirect()->route('purchase-orders.show', $po->id)
+                ->with('success', 'รับของและเพิ่มสต็อกเรียบร้อยแล้ว!');
+        });
     }
 
     public function cancel(PurchaseOrder $purchaseOrder)
@@ -160,11 +181,13 @@ class PurchaseOrderController extends Controller
      */
     public function destroy(PurchaseOrder $purchaseOrder)
     {
-       if ($purchaseOrder->status === 'received') {
-            return back()->with('error', 'ไม่สามารถลบได้ เนื่องจากรับของแล้ว (ให้ยกเลิกผ่านระบบแทน)');
+        if ($purchaseOrder->status !== 'pending') {
+            return back()->with('error', 'ไม่สามารถลบได้ เนื่องจาก PO นี้อยู่ระหว่างดำเนินการหรือเสร็จสิ้นแล้ว (ใช้การยกเลิกแทน)');
         }
 
         $purchaseOrder->delete();
-        return redirect()->route('purchase-orders.index')->with('success', 'ลบ PO สำเร็จ');
+
+        return redirect()->route('purchase-orders.index')
+            ->with('success', 'ลบใบสั่งซื้อสำเร็จ');
     }
 }

@@ -1,12 +1,19 @@
 <?php
-
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
 class SaleItem extends Model
 {
-    protected $fillable = ['sale_id', 'product_id', 'quantity', 'price', 'total'];
+    protected $fillable = [
+        'sale_id',
+        'product_id',
+        'quantity',
+        'price',
+        'cost_at_sale',
+        'total',
+        'stock_after', // ✅ เพิ่มบรรทัดนี้
+    ];
 
     public function sale()
     {

@@ -4,6 +4,7 @@ use App\Http\Controllers\ApAgingController;
 use App\Http\Controllers\ArAgingController;
 use App\Http\Controllers\BrandController;
 use App\Http\Controllers\CarBrandController;
+use App\Http\Controllers\CashierShiftController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\ExpenseController;
@@ -15,6 +16,7 @@ use App\Http\Controllers\ReceiptController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\SaleController;
 use App\Http\Controllers\SettingController;
+use App\Http\Controllers\ShiftScheduleController;
 use App\Http\Controllers\StockAdjustmentController;
 use App\Http\Controllers\StockDocumentController;
 use App\Http\Controllers\StockMovementController;
@@ -49,7 +51,7 @@ Route::middleware(['auth', '2fa'])->group(function () {
     Route::get('/dashboard', function () {
         $totalProducts    = Product::count();
         $totalSuppliers   = Supplier::count();
-        $totalStockValue  = Product::sum(DB::raw('price * stock'));
+        $totalStockValue  = Product::sum(DB::raw('cost * stock')); // ✅ ใช้ cost
         $lowStockProducts = Product::where('stock', '<', 10)->where('is_active', true)->get();
 
         return view('dashboard', compact('totalProducts', 'totalSuppliers', 'totalStockValue', 'lowStockProducts'));
@@ -65,6 +67,11 @@ Route::middleware(['auth', '2fa'])->group(function () {
         Route::put('/settings/{key}/update', [SettingController::class, 'updateCustom'])->name('settings.update-custom');
         Route::patch('/settings/{key}/toggle', [SettingController::class, 'toggleActive'])->name('settings.toggle');
         Route::delete('/settings/{key}', [SettingController::class, 'destroy'])->name('settings.destroy');
+
+        // ตารางกะพนักงาน (Shift Schedule)
+        Route::get('/shift-schedules/{shiftSchedule}/edit-data', [ShiftScheduleController::class, 'editData'])->name('shift-schedules.edit-data');
+        Route::get('/shift-schedules/events', [ShiftScheduleController::class, 'getEvents'])->name('shift-schedules.events');
+        Route::resource('shift-schedules', ShiftScheduleController::class)->except(['create', 'edit', 'show']);
     });
 
     // 3. หน้าจัดการข้อมูลหลัก (Admin, Stock)
@@ -96,6 +103,7 @@ Route::middleware(['auth', '2fa'])->group(function () {
     });
 
     Route::middleware('permission:delete-products')->group(function () {
+        Route::patch('/products/{product}/toggle-active', [ProductController::class, 'toggleActive'])->name('products.toggle-active');
         Route::delete('/products/{product}', [ProductController::class, 'destroy'])->name('products.destroy');
     });
 
@@ -156,6 +164,13 @@ Route::middleware(['auth', '2fa'])->group(function () {
     Route::middleware('permission:create-sale')->group(function () {
         Route::get('/sales', [SaleController::class, 'index'])->name('sales.index');
         Route::post('/sales', [SaleController::class, 'store'])->name('sales.store');
+        // ==========================================
+        //  ระบบเปิด-ปิดกะ (Cashier Shift)
+        // ==========================================
+        Route::get('/cashier-shifts', [CashierShiftController::class, 'index'])->name('cashier-shifts.index');
+        Route::post('/cashier-shifts', [CashierShiftController::class, 'store'])->name('cashier-shifts.store');
+        Route::post('/cashier-shifts/{cashierShift}/close', [CashierShiftController::class, 'close'])->name('cashier-shifts.close');
+        Route::get('/cashier-shifts/{cashierShift}', [CashierShiftController::class, 'show'])->name('cashier-shifts.show');
     });
 
     // ⚠️ /sales/{sale} ต้องอยู่หลัง /sales/create (ถ้ามี)
