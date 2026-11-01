@@ -7,8 +7,8 @@
         <div class="flex justify-between items-center mb-6 print:hidden">
             <a href="{{ route('purchase-orders.index') }}" class="text-blue-600 hover:underline">&larr; กลับไปหน้ารายการ</a>
             <div class="flex gap-2">
-                {{-- ✅ ปุ่มลบ (แสดงเฉพาะ Pending) --}}
-                @if($purchaseOrder->status === 'pending')
+                {{-- ✅ ปุ่มลบ (แสดงเฉพาะ Pending และผู้มีสิทธิ์) --}}
+                @if($purchaseOrder->status === 'pending' && auth()->user()->can('create-stock-document'))
                     <form action="{{ route('purchase-orders.destroy', $purchaseOrder->id) }}" method="POST"
                           onsubmit="return confirm('ยืนยันการลบ PO? (แนะนำให้ใช้การยกเลิกแทน)');">
                         @csrf
@@ -103,6 +103,32 @@
                 <p class="text-lg font-bold text-slate-800">ยอดรวมทั้งสิ้น: <span class="text-blue-600">฿{{ number_format($purchaseOrder->total_amount, 2) }}</span></p>
             </div>
 
+            <!-- สถานะการจ่ายเงิน (เฉพาะ PO ที่รับของแล้ว) -->
+            @if($purchaseOrder->status === 'received')
+                <div class="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-4 print:hidden">
+                    <div class="flex flex-wrap items-center justify-between gap-4">
+                        <div class="text-sm text-slate-700">
+                            <p>จ่ายแล้ว: <span class="font-semibold text-emerald-700">฿{{ number_format($purchaseOrder->paid_amount, 2) }}</span></p>
+                            <p>ค้างจ่าย: <span class="font-semibold {{ $purchaseOrder->remaining_amount > 0 ? 'text-rose-600' : 'text-emerald-700' }}">฿{{ number_format($purchaseOrder->remaining_amount, 2) }}</span>
+                                @if($purchaseOrder->remaining_amount <= 0) <span class="ml-1 text-emerald-700">(จ่ายครบแล้ว)</span> @endif
+                            </p>
+                        </div>
+                        @can('manage-expenses')
+                            @if($purchaseOrder->remaining_amount > 0)
+                                <form action="{{ route('purchase-orders.pay', $purchaseOrder->id) }}" method="POST" class="flex items-center gap-2">
+                                    @csrf
+                                    <input type="number" name="amount" step="0.01" min="0.01" max="{{ $purchaseOrder->remaining_amount }}"
+                                           value="{{ $purchaseOrder->remaining_amount }}" required
+                                           class="w-40 rounded-lg border border-slate-300 p-2 text-right focus:ring-2 focus:ring-blue-500">
+                                    <button type="submit" onclick="return confirm('ยืนยันบันทึกการจ่ายเงินให้ Supplier?')"
+                                            class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">บันทึกการจ่ายเงิน</button>
+                                </form>
+                            @endif
+                        @endcan
+                    </div>
+                </div>
+            @endif
+
             <!-- หมายเหตุ -->
             @if($purchaseOrder->note)
                 <div class="mt-6 text-sm">
@@ -112,7 +138,7 @@
             @endif
 
             <!-- ปุ่มรับของ / ยกเลิก (เฉพาะ Pending) -->
-            @if($purchaseOrder->status === 'pending')
+            @if($purchaseOrder->status === 'pending' && auth()->user()->can('create-stock-document'))
                 <div class="mt-8 flex justify-end space-x-3 print:hidden">
                     <form action="{{ route('purchase-orders.cancel', $purchaseOrder->id) }}" method="POST" onsubmit="return confirm('ยืนยันการยกเลิก PO?');">
                         @csrf

@@ -32,6 +32,11 @@
                     <label class="block text-gray-700 font-medium mb-2">อีเมล</label>
                     <input type="email" name="email" value="{{ old('email', $supplier->email) }}" class="w-full border p-2 rounded focus:ring focus:ring-blue-200">
                 </div>
+                <div>
+                    <label class="block text-gray-700 font-medium mb-2">เครดิตเทอม (วัน)</label>
+                    <input type="number" name="credit_term_days" min="0" max="365" step="1" value="{{ old('credit_term_days', $supplier->credit_term_days ?? 0) }}" class="w-full border p-2 rounded focus:ring focus:ring-blue-200">
+                    <p class="text-xs text-gray-500 mt-1">ใช้คำนวณวันครบกำหนดจ่ายเจ้าหนี้ (นับจากวันรับของ)</p>
+                </div>
             </div>
             <div class="mb-4">
                 <label class="block text-gray-700 font-medium mb-2">ที่อยู่</label>

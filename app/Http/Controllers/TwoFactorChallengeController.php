@@ -42,6 +42,7 @@ class TwoFactorChallengeController extends Controller
         if ($ts !== false) {
             cache()->put('2fa-last-ts:' . $user->id, $ts, now()->addMinutes(5));
             RateLimiter::clear($key);
+            $request->session()->regenerate(); // กัน session fixation หลังยืนยันตัวตนขั้นที่ 2
             session(['2fa_verified' => true]);
             return redirect()->intended('/dashboard');
         }

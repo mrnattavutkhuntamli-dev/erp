@@ -301,6 +301,27 @@
                 <input type="date" name="expense_date" id="fieldExpenseDate" value="{{ date('Y-m-d') }}" required class="{{ $field }}">
             </div>
 
+            {{-- จ่ายจากเงินในลิ้นชัก (หักตอนปิดกะ) --}}
+            <label class="flex cursor-pointer items-start gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                <input type="checkbox" name="from_cash_drawer" id="fieldFromCashDrawer" value="1"
+                       class="mt-0.5 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500">
+                <span class="text-sm text-slate-700">
+                    <span class="font-medium">จ่ายจากเงินสดในลิ้นชักแคชเชียร์</span>
+                    <span class="block text-xs text-slate-500">ระบบจะหักยอดนี้ออกจาก "เงินที่ควรมีในลิ้นชัก" ตอนปิดกะ</span>
+                </span>
+            </label>
+
+            {{-- เลือกกะที่จ่ายจากลิ้นชัก (เว้นว่าง = กะของตัวเอง หรือกะที่เปิดอยู่กะเดียว) --}}
+            <div>
+                <label for="fieldCashierShift" class="mb-2 block text-sm font-medium text-slate-700">หักจากลิ้นชักของกะ</label>
+                <select name="cashier_shift_id" id="fieldCashierShift" class="{{ $field }}">
+                    <option value="">อัตโนมัติ</option>
+                    @foreach(($openShifts ?? collect()) as $shift)
+                        <option value="{{ $shift->id }}">กะ#{{ $shift->id }} - {{ $shift->user->name ?? '-' }} (เปิด {{ $shift->opened_at->format('d/m H:i') }})</option>
+                    @endforeach
+                </select>
+            </div>
+
             <div id="errorBox" class="hidden rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700"></div>
         </div>
 
@@ -346,6 +367,8 @@
             document.getElementById('fieldExpenseDate').value = data.expense_date;
             document.getElementById('fieldDescription').value = data.description;
             document.getElementById('fieldAmount').value = data.amount;
+            document.getElementById('fieldFromCashDrawer').checked = !!data.from_cash_drawer;
+            document.getElementById('fieldCashierShift').value = data.cashier_shift_id || '';
             const radio = expenseForm.querySelector(`input[name="category"][value="${data.category}"]`);
             if (radio) radio.checked = true;
 

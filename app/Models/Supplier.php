@@ -9,7 +9,7 @@ class Supplier extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['name', 'contact_name', 'phone', 'email', 'address', 'is_active']; // ฟิวที่อนุญาติให้สามารถบันทึกลงข้อมูล
+    protected $fillable = ['name', 'contact_name', 'phone', 'email', 'address', 'is_active', 'credit_term_days']; // ฟิวที่อนุญาติให้สามารถบันทึกลงข้อมูล
 
     // ซัพพลายเออร์ 1 เจ้า ขายสินค้าให้เราได้หลายชิ้น
     public function products()

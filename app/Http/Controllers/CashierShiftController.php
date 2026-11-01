@@ -3,9 +3,11 @@
 namespace App\Http\Controllers;
 
 use App\Models\CashierShift;
+use App\Models\Expense;
 use App\Models\Receipt;
 use App\Models\Sale;
 use App\Models\ShiftSchedule;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -23,9 +25,11 @@ class CashierShiftController extends Controller
             ->first();
 
         // ดึงตารางกะของวันนี้ (ถ้ามี)
-        $todaySchedule = ShiftSchedule::where('user_id', auth()->id())
-            ->where('shift_date', now()->toDateString())
-            ->first();
+        $todaySchedule = ShiftSchedule::findActive(auth()->id(), now())
+            ?? ShiftSchedule::where('user_id', auth()->id())
+                ->where('shift_date', now()->toDateString())
+                ->orderBy('start_time')
+                ->first();
 
         // ดึงประวัติกะ (เฉพาะของพนักงานคนนี้ ถ้าไม่ใช่ Admin)
         $shiftsQuery = CashierShift::with('user')->latest();
@@ -52,12 +56,8 @@ class CashierShiftController extends Controller
         }
 
         // 2-3. หากะของวันนี้ที่ครอบคลุมเวลาปัจจุบัน (รองรับหลายกะต่อวัน)
-        $currentTime   = now()->format('H:i:s');
-        $todaySchedule = ShiftSchedule::where('user_id', auth()->id())
-            ->where('shift_date', now()->toDateString())
-            ->where('start_time', '<=', $currentTime)
-            ->where('end_time', '>=', $currentTime)
-            ->first();
+        // (รองรับกะข้ามคืน เช่น 22:00–06:00 รวมถึงตอนหลังเที่ยงคืนของกะที่เริ่มเมื่อวาน)
+        $todaySchedule = ShiftSchedule::findActive(auth()->id(), now());
 
         if (! $todaySchedule) {
             return back()->with('error', 'ขณะนี้ไม่อยู่ในช่วงเวลากะที่กำหนดไว้ ไม่สามารถเปิดกะได้');
@@ -74,15 +74,20 @@ class CashierShiftController extends Controller
             return back()->with('error', 'คุณมีกะที่เปิดอยู่แล้ว กรุณาปิดกะก่อน');
         }
 
-        CashierShift::create([
-            'user_id'          => auth()->id(),
-            'shift_start_time' => $todaySchedule->start_time,
-            'shift_end_time'   => $todaySchedule->end_time,
-            'opened_at'        => now(),
-            'opening_cash'     => $validated['opening_cash'],
-            'opening_note'     => $validated['opening_note'] ?? null,
-            'status'           => 'open',
-        ]);
+        try {
+            CashierShift::create([
+                'user_id'          => auth()->id(),
+                'shift_start_time' => $todaySchedule->start_time,
+                'shift_end_time'   => $todaySchedule->end_time,
+                'opened_at'        => now(),
+                'opening_cash'     => $validated['opening_cash'],
+                'opening_note'     => $validated['opening_note'] ?? null,
+                'status'           => 'open',
+            ]);
+        } catch (UniqueConstraintViolationException $e) {
+            // กดเปิดกะซ้ำพร้อมกัน → unique index กันไว้ที่ DB
+            return back()->with('error', 'คุณมีกะที่เปิดอยู่แล้ว กรุณาปิดกะก่อน');
+        }
 
         return redirect()->route('cashier-shifts.index')
             ->with('success', 'เปิดกะสำเร็จ! เงินทอนเริ่มต้น ฿' . number_format($validated['opening_cash'], 2));
@@ -111,9 +116,17 @@ class CashierShiftController extends Controller
         }
 
         // คำนวณยอดขายจาก Sales ในช่วงเวลากะ
-        $sales = Sale::where('user_id', $cashierShift->user_id)
-            ->where('status', 'completed')
-            ->whereBetween('created_at', [$cashierShift->opened_at, now()])
+        // ผูกตาม cashier_shift_id เป็นหลัก; บิลเก่าที่ไม่ได้ผูกกะ (null) ใช้ช่วงเวลา+ผู้ใช้แทน
+        $closeAt = now();
+        $sales = Sale::where('status', 'completed')
+            ->where(function ($q) use ($cashierShift, $closeAt) {
+                $q->where('cashier_shift_id', $cashierShift->id)
+                  ->orWhere(function ($q2) use ($cashierShift, $closeAt) {
+                      $q2->whereNull('cashier_shift_id')
+                         ->where('user_id', $cashierShift->user_id)
+                         ->whereBetween('created_at', [$cashierShift->opened_at, $closeAt]);
+                  });
+            })
             ->get();
 
         $cashSales     = $sales->where('payment_method', 'cash')->sum('total');
@@ -126,12 +139,25 @@ class CashierShiftController extends Controller
         $cashReceipts = Receipt::where('user_id', $cashierShift->user_id)
             ->where('status', 'active')
             ->where('payment_method', 'cash')
-            ->whereBetween('created_at', [$cashierShift->opened_at, now()])
+            ->whereBetween('created_at', [$cashierShift->opened_at, $closeAt])
+            ->sum('amount');
+
+        // ค่าใช้จ่ายที่จ่ายจากเงินในลิ้นชักระหว่างกะ (ติ๊ก "จ่ายจากลิ้นชัก" ตอนบันทึกค่าใช้จ่าย)
+        // (ฝ่ายบัญชี/admin เป็นคนบันทึกได้ จึงผูกกับกะผ่าน cashier_shift_id; รายการเก่าที่ไม่ผูกใช้ช่วงเวลา+ผู้ใช้แทน)
+        $totalExpenses = Expense::where('from_cash_drawer', true)
+            ->where(function ($q) use ($cashierShift, $closeAt) {
+                $q->where('cashier_shift_id', $cashierShift->id)
+                  ->orWhere(function ($q2) use ($cashierShift, $closeAt) {
+                      $q2->whereNull('cashier_shift_id')
+                         ->where('user_id', $cashierShift->user_id)
+                         ->whereBetween('created_at', [$cashierShift->opened_at, $closeAt]);
+                  });
+            })
             ->sum('amount');
 
         // อัปเดตข้อมูลกะ
         $cashierShift->update([
-            'closed_at'            => now(),
+            'closed_at'            => $closeAt,
             'closing_cash'         => $validated['closing_cash'],
             'closing_note'         => $validated['closing_note'] ?? null,
             'total_cash_sales'     => $cashSales,
@@ -139,6 +165,7 @@ class CashierShiftController extends Controller
             'total_card_sales'     => $cardSales,
             'total_credit_sales'   => $creditSales, // ✅ เพิ่ม
             'total_cash_receipts'  => $cashReceipts,
+            'total_expenses'       => $totalExpenses,
             'total_sales'          => $totalSales,
             'total_bills'          => $sales->count(),
             'status'               => 'closed',

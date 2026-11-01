@@ -8,10 +8,15 @@ use Symfony\Component\HttpFoundation\Response;
 
 class CheckPermission
 {
-    public function handle(Request $request, Closure $next, string $permission): Response
+    /**
+     * ใช้งาน:  permission:view-sales            (ต้องมีสิทธิ์นี้)
+     *          permission:view-sales,manage-expenses  (มีอย่างใดอย่างหนึ่งก็ผ่าน)
+     */
+    public function handle(Request $request, Closure $next, string ...$permissions): Response
     {
-        // ถ้าผู้ใช้ไม่มีสิทธิ์นี้ ให้บล็อกและแจ้งเตือน
-        if (!auth()->user() || !auth()->user()->can($permission)) {
+        $user = auth()->user();
+
+        if (! $user || ! collect($permissions)->contains(fn ($p) => $user->can($p))) {
             abort(403, 'คุณไม่มีสิทธิ์เข้าถึงหน้านี้');
         }
 

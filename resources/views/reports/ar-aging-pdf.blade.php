@@ -72,17 +72,17 @@
     <table class="summary">
         <tr>
             <td class="s-ok">
-                <div class="s-label">ยังไม่ครบกำหนด (0-30 วัน)</div>
+                <div class="s-label">ยังไม่ครบกำหนด / เกินกำหนด 0-30 วัน</div>
                 <div class="s-value">{{ number_format($totals['current'], 2) }}</div>
                 <div class="s-pct">{{ round($totals['current'] / $grand * 100, 1) }}% ของยอดค้าง</div>
             </td>
             <td class="s-warn">
-                <div class="s-label">ค้าง 31-60 วัน</div>
+                <div class="s-label">เกินกำหนด 31-60 วัน</div>
                 <div class="s-value">{{ number_format($totals['days_31_60'], 2) }}</div>
                 <div class="s-pct">{{ round($totals['days_31_60'] / $grand * 100, 1) }}% ของยอดค้าง</div>
             </td>
             <td class="s-bad">
-                <div class="s-label">ค้างเกิน 60 วัน</div>
+                <div class="s-label">เกินกำหนดเกิน 60 วัน</div>
                 <div class="s-value">{{ number_format($totals['days_60_plus'], 2) }}</div>
                 <div class="s-pct">{{ round($totals['days_60_plus'] / $grand * 100, 1) }}% ของยอดค้าง</div>
             </td>
@@ -98,11 +98,11 @@
         <thead>
             <tr>
                 <th style="width: 18%;">เลขที่บิล</th>
-                <th style="width: 14%;">วันที่ขาย</th>
+                <th style="width: 14%;">วันที่ขาย / ครบกำหนด</th>
                 <th class="text-right">ยอดรวม</th>
                 <th class="text-right">ชำระแล้ว</th>
                 <th class="text-right">ค้างชำระ</th>
-                <th class="text-center" style="width: 12%;">อายุหนี้</th>
+                <th class="text-center" style="width: 12%;">เกินกำหนด (วัน)</th>
             </tr>
         </thead>
         <tbody>
@@ -114,7 +114,7 @@
                 @foreach($customer['invoices'] as $inv)
                     <tr class="{{ $loop->even ? 'zebra' : '' }}">
                         <td>{{ $inv['invoice_no'] }}</td>
-                        <td>{{ $inv['date'] }}</td>
+                        <td>{{ $inv['date'] }} / {{ $inv['due_date'] }}</td>
                         <td class="text-right">{{ number_format($inv['total'], 2) }}</td>
                         <td class="text-right paid">{{ number_format($inv['paid'], 2) }}</td>
                         <td class="text-right due">{{ number_format($inv['due'], 2) }}</td>

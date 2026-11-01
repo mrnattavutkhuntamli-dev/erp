@@ -77,8 +77,10 @@ class CustomerController extends Controller
      */
     public function destroy(Customer $customer)
     {
-        if (\App\Models\Sale::where('customer_id', $customer->id)->exists()) {
-            return back()->with('error', 'ลบไม่ได้ เพราะมีบิลอ้างอิงลูกค้ารายนี้ (ให้ปิดใช้งานแทน)');
+        if (\App\Models\Sale::where('customer_id', $customer->id)->exists()
+            || \App\Models\Quotation::where('customer_id', $customer->id)->exists()
+            || \App\Models\StockDocument::where('customer_id', $customer->id)->exists()) {
+            return back()->with('error', 'ลบไม่ได้ เพราะมีบิล/ใบเสนอราคา/ใบเบิกอ้างอิงลูกค้ารายนี้ (ให้ปิดใช้งานแทน)');
         }
 
         $customer->delete();

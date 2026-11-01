@@ -39,6 +39,18 @@ class CarBrandController extends Controller
 
     public function destroy(CarBrand $carBrand)
     {
+        // กันลบแล้วข้อมูล "อะไหล่ชิ้นนี้ใช้กับรถรุ่นไหน" หายเงียบๆ (pivot product_car_model ถูก cascade)
+        $linked = \Illuminate\Support\Facades\DB::table('product_car_model')
+            ->whereIn('car_model_id', $carBrand->models()->select('id'))
+            ->distinct()->count('product_id');
+
+        if ($linked > 0) {
+            return redirect()->route('car-brands.index')->with(
+                'error',
+                "ไม่สามารถลบยี่ห้อรถนี้ได้ เนื่องจากมีสินค้า {$linked} รายการผูกกับรุ่นรถของยี่ห้อนี้อยู่ (ให้เอาออกจากสินค้าก่อน)"
+            );
+        }
+
         $carBrand->delete();
         return redirect()->route('car-brands.index')->with('success', 'ลบยี่ห้อรถและรุ่นรถที่เกี่ยวข้องสำเร็จ!');
     }
@@ -62,6 +74,16 @@ class CarBrandController extends Controller
 public function destroyCarModel($id)
 {
     $model = \App\Models\CarModel::findOrFail($id);
+
+    $linked = \Illuminate\Support\Facades\DB::table('product_car_model')
+        ->where('car_model_id', $model->id)->count();
+    if ($linked > 0) {
+        return redirect()->route('car-brands.index')->with(
+            'error',
+            "ไม่สามารถลบรุ่นรถนี้ได้ เนื่องจากมีสินค้า {$linked} รายการผูกอยู่ (ให้เอาออกจากสินค้าก่อน)"
+        );
+    }
+
     $model->delete();
     return redirect()->route('car-brands.index')->with('success', 'ลบรุ่นรถสำเร็จ!');
 }

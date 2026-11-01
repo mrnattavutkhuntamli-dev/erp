@@ -12,6 +12,16 @@ class EnsureTwoFactorIsVerified
     {
         $user = auth()->user();
 
+        // บัญชีที่ถูกปิดใช้งานแล้ว (เช่น พนักงานลาออก) ต้องออกจากระบบทันที แม้ session เดิมยังไม่หมดอายุ
+        if ($user && $user->is_active === false) {
+            auth()->logout();
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+
+            return redirect()->route('login')
+                ->withErrors(['email' => 'บัญชีนี้ถูกปิดการใช้งาน กรุณาติดต่อผู้ดูแลระบบ']);
+        }
+
         // ถ้าผู้ใช้เปิด 2FA ไว้ และยังไม่ได้ยืนยันใน Session นี้
         if ($user && $user->google2fa_enabled && !session('2fa_verified')) {
 

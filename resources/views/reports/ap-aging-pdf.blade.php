@@ -70,17 +70,17 @@
     <table class="summary">
         <tr>
             <td class="s-ok">
-                <div class="s-label">ยังไม่ครบกำหนด (0-30 วัน)</div>
+                <div class="s-label">ค้างจ่าย 0-30 วัน</div>
                 <div class="s-value">{{ number_format($totals['current'], 2) }}</div>
                 <div class="s-pct">{{ round($totals['current'] / $grand * 100, 1) }}% ของยอดค้าง</div>
             </td>
             <td class="s-warn">
-                <div class="s-label">ค้าง 31-60 วัน</div>
+                <div class="s-label">ค้างจ่าย 31-60 วัน</div>
                 <div class="s-value">{{ number_format($totals['days_31_60'], 2) }}</div>
                 <div class="s-pct">{{ round($totals['days_31_60'] / $grand * 100, 1) }}% ของยอดค้าง</div>
             </td>
             <td class="s-bad">
-                <div class="s-label">ค้างเกิน 60 วัน</div>
+                <div class="s-label">ค้างจ่ายเกิน 60 วัน</div>
                 <div class="s-value">{{ number_format($totals['days_60_plus'], 2) }}</div>
                 <div class="s-pct">{{ round($totals['days_60_plus'] / $grand * 100, 1) }}% ของยอดค้าง</div>
             </td>

@@ -26,6 +26,7 @@ class User extends Authenticatable
         'google2fa_secret',  // ✅ เพิ่ม
         'google2fa_enabled', // ✅ เพิ่ม
     ];
+    // หมายเหตุ: is_active ไม่ใส่ใน fillable โดยตั้งใจ (เปลี่ยนผ่าน UserController::toggleActive เท่านั้น)
 
     /**
      * The attributes that should be hidden for serialization.
@@ -49,6 +50,7 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password'          => 'hashed',
             'google2fa_enabled' => 'boolean',
+            'is_active'         => 'boolean',
             'google2fa_secret' => 'encrypted',
         ];
     }

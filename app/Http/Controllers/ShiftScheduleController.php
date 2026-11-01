@@ -15,7 +15,7 @@ class ShiftScheduleController extends Controller
         // Dropdown พนักงาน
         $users = User::whereHas('roles', function ($q) {
             $q->whereIn('name', ['cashier', 'stock', 'delivery']);
-        })->orderBy('name')->get();
+        })->where('is_active', true)->orderBy('name')->get();
 
         return view('shift-schedules.index', compact('schedules', 'users'));
     }
@@ -23,20 +23,15 @@ class ShiftScheduleController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'user_id'    => 'required|exists:users,id',
+            'user_id'    => ['required', \Illuminate\Validation\Rule::exists('users', 'id')->where('is_active', true)],
             'shift_date' => 'required|date',
-            'start_time' => 'required',
-            'end_time'   => 'required|after:start_time',
+            'start_time' => ['required', 'date_format:H:i,H:i:s'],
+            'end_time'   => ['required', 'date_format:H:i,H:i:s', 'different:start_time'],
             'note'       => 'nullable|string|max:500',
         ]);
-        $conflict = ShiftSchedule::where('user_id', $validated['user_id'])
-            ->where('shift_date', $validated['shift_date'])
-            ->where(function ($q) use ($validated) {
-                // กะใหม่ทับกะเก่า ถ้า: (start_new < end_old) AND (end_new > start_old)
-                $q->where('start_time', '<', $validated['end_time'])
-                    ->where('end_time', '>', $validated['start_time']);
-            })
-            ->exists();
+        $conflict = ShiftSchedule::overlaps(
+            (int) $validated['user_id'], $validated['shift_date'], $validated['start_time'], $validated['end_time']
+        );
 
         if ($conflict) {
             return back()->withErrors([
@@ -52,21 +47,16 @@ class ShiftScheduleController extends Controller
     public function update(Request $request, ShiftSchedule $shiftSchedule)
     {
         $validated = $request->validate([
-            'user_id'    => 'required|exists:users,id',
+            'user_id'    => ['required', \Illuminate\Validation\Rule::exists('users', 'id')->where('is_active', true)],
             'shift_date' => 'required|date',
-            'start_time' => 'required',
-            'end_time'   => 'required|after:start_time',
+            'start_time' => ['required', 'date_format:H:i,H:i:s'],
+            'end_time'   => ['required', 'date_format:H:i,H:i:s', 'different:start_time'],
             'note'       => 'nullable|string|max:500',
         ]);
         // ✅ ตรวจสอบกะซ้อน (ยกเว้นตัวเอง)
-        $conflict = ShiftSchedule::where('user_id', $validated['user_id'])
-            ->where('shift_date', $validated['shift_date'])
-            ->where('id', '!=', $shiftSchedule->id) // ✅ ยกเว้นตัวเอง
-            ->where(function ($q) use ($validated) {
-                $q->where('start_time', '<', $validated['end_time'])
-                    ->where('end_time', '>', $validated['start_time']);
-            })
-            ->exists();
+        $conflict = ShiftSchedule::overlaps(
+            (int) $validated['user_id'], $validated['shift_date'], $validated['start_time'], $validated['end_time'], $shiftSchedule->id
+        );
 
         if ($conflict) {
             return back()->withErrors([

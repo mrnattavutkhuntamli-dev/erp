@@ -61,6 +61,12 @@ class UserController extends Controller
             'role' => 'required|exists:roles,name',
         ]);
 
+        // กันเปลี่ยน role ของ Admin คนสุดท้าย — ต้องเช็กก่อนบันทึกข้อมูลใดๆ
+        // (เดิมบันทึกชื่อ/อีเมล/รหัสผ่านไปก่อน แล้วค่อยแจ้ง error ทำให้ข้อมูลเปลี่ยนทั้งที่แจ้งว่าไม่สำเร็จ)
+        if ($user->hasRole('admin') && $validated['role'] !== 'admin' && $this->wouldLeaveNoActiveAdmin($user)) {
+            return redirect()->route('users.index')->with('error', 'ไม่สามารถเปลี่ยน role ของ Admin คนสุดท้ายได้');
+        }
+
         $user->name = $validated['name'];
         $user->email = $validated['email'];
 
@@ -69,20 +75,56 @@ class UserController extends Controller
             $user->password = Hash::make($validated['password']);
         }
 
-        $user->save();
+        return \Illuminate\Support\Facades\DB::transaction(function () use ($user, $validated) {
+            $user->save();
 
-        // กันเปลี่ยน role ของ Admin คนสุดท้าย
-        if ($user->hasRole('admin') && $validated['role'] !== 'admin' && User::role('admin')->count() <= 1) {
-            return redirect()->route('users.index')->with('error', 'ไม่สามารถเปลี่ยน role ของ Admin คนสุดท้ายได้');
-        }
+            // อัปเดต Role
+            $user->syncRoles([$validated['role']]);
 
-        // อัปเดต Role
-        $user->syncRoles([$validated['role']]);
-
-        return redirect()->route('users.index')->with('success', 'อัปเดตข้อมูลพนักงานสำเร็จ!');
+            return redirect()->route('users.index')->with('success', 'อัปเดตข้อมูลพนักงานสำเร็จ!');
+        });
     }
 
-    // 6. ลบพนักงาน
+    // 6. เปิด/ปิดการใช้งานบัญชี (ใช้กับพนักงานที่ลาออกแต่มีประวัติบิล/กะ จึงลบไม่ได้)
+    public function toggleActive(User $user)
+    {
+        if ($user->id === auth()->id()) {
+            return redirect()->route('users.index')->with('error', 'ไม่สามารถปิดใช้งานบัญชีของตัวเองได้');
+        }
+
+        if ($user->is_active && $user->hasRole('admin')
+            && User::role('admin')->where('is_active', true)->count() <= 1) {
+            return redirect()->route('users.index')->with('error', 'ไม่สามารถปิดใช้งาน Admin คนสุดท้ายได้');
+        }
+
+        $user->forceFill(['is_active' => ! $user->is_active])->save();
+
+        // ปิดใช้งาน: ล้าง session เดิมของผู้ใช้ (กรณีใช้ session แบบ database)
+        if (! $user->is_active && config('session.driver') === 'database') {
+            \Illuminate\Support\Facades\DB::table(config('session.table', 'sessions'))
+                ->where('user_id', $user->id)->delete();
+        }
+
+        return redirect()->route('users.index')->with(
+            'success',
+            $user->is_active ? 'เปิดใช้งานบัญชี ' . $user->name . ' แล้ว' : 'ปิดใช้งานบัญชี ' . $user->name . ' แล้ว'
+        );
+    }
+
+    /**
+     * ถ้าเอา $user ออกจากการเป็น admin ที่ใช้งานได้ (ลบ/ลด role) แล้วจะไม่เหลือ admin ที่ active เลยหรือไม่
+     * (admin ที่ถูกปิดใช้งานเข้าสู่ระบบไม่ได้ จึงไม่นับ)
+     */
+    private function wouldLeaveNoActiveAdmin(User $user): bool
+    {
+        if (! $user->is_active) {
+            return false; // คนนี้ไม่ใช่ admin ที่ใช้งานอยู่แล้ว การเอาออกไม่กระทบจำนวน admin ที่ใช้งานได้
+        }
+
+        return User::role('admin')->where('is_active', true)->where('id', '!=', $user->id)->doesntExist();
+    }
+
+    // 7. ลบพนักงาน
     public function destroy(User $user)
     {
         // ป้องกันการลบตัวเอง
@@ -90,7 +132,7 @@ class UserController extends Controller
             return redirect()->route('users.index')->with('error', 'ไม่สามารถลบตัวเองได้');
         }
 
-        if ($user->hasRole('admin') && User::role('admin')->count() <= 1) {
+        if ($user->hasRole('admin') && $this->wouldLeaveNoActiveAdmin($user)) {
             return redirect()->route('users.index')->with('error', 'ไม่สามารถลบ Admin คนสุดท้ายได้');
         }
 

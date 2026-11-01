@@ -24,7 +24,7 @@ class StockMovementController extends Controller
         $docs = DB::table('stock_document_items as i')
             ->join('stock_documents as d', 'd.id', '=', 'i.stock_document_id')
             ->where('d.status', 'completed')
-            ->whereBetween(DB::raw('DATE(d.date)'), [$startDate, $endDate])
+            ->whereBetween('d.date', [$startDate, $endDate])
             ->select([
                 'd.date as date',
                 'd.created_at',
@@ -41,7 +41,7 @@ class StockMovementController extends Controller
         $sales = DB::table('sale_items as i')
             ->join('sales as s', 's.id', '=', 'i.sale_id')
             ->where('s.status', 'completed')
-            ->whereBetween(DB::raw('DATE(s.created_at)'), [$startDate, $endDate])
+            ->whereBetween('s.created_at', [$startDate . ' 00:00:00', $endDate . ' 23:59:59'])
             ->select([
                 DB::raw("DATE(s.created_at) as date"),
                 's.created_at',
@@ -56,7 +56,7 @@ class StockMovementController extends Controller
 
         // 3. ปรับปรุงสต็อก
         $adjusts = DB::table('stock_adjustments as a')
-            ->whereBetween(DB::raw('DATE(a.created_at)'), [$startDate, $endDate])
+            ->whereBetween('a.created_at', [$startDate . ' 00:00:00', $endDate . ' 23:59:59'])
             ->select([
                 DB::raw("DATE(a.created_at) as date"),
                 'a.created_at',

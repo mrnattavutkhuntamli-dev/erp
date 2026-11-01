@@ -38,6 +38,14 @@ class StockAdjustmentController extends Controller
             'note' => 'nullable|string',
         ]);
 
+        // เหตุผลต้องสอดคล้องกับประเภท: ของเสีย/สูญหาย = ลด, รับคืน = เพิ่ม
+        if (in_array($validated['reason'], ['damaged', 'lost'], true) && $validated['type'] !== 'subtraction') {
+            return back()->withInput()->with('error', 'เหตุผล "ของเสีย/สูญหาย" ต้องเป็นการลดสต็อก');
+        }
+        if ($validated['reason'] === 'return' && $validated['type'] !== 'addition') {
+            return back()->withInput()->with('error', 'เหตุผล "รับคืน" ต้องเป็นการเพิ่มสต็อก');
+        }
+
         try {
             return DB::transaction(function () use ($validated) {
                 // ล็อกสินค้าเพื่อป้องกันการแก้ไขซ้อนกัน

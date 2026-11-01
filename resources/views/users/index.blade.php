@@ -61,6 +61,9 @@
                                         @if ($user->id === auth()->id())
                                             <span class="mt-0.5 inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">บัญชีของคุณ</span>
                                         @endif
+                                        @unless ($user->is_active)
+                                            <span class="mt-0.5 inline-flex rounded-full bg-slate-200 px-2 py-0.5 text-xs font-medium text-slate-600">ปิดใช้งาน</span>
+                                        @endunless
                                     </div>
                                 </div>
                             </td>
@@ -88,6 +91,15 @@
                                     </a>
 
                                     @if ($user->id !== auth()->id())
+                                        <form action="{{ route('users.toggle-active', $user->id) }}" method="POST"
+                                              onsubmit="return confirm('{{ $user->is_active ? 'ปิดใช้งานบัญชีนี้? ผู้ใช้จะเข้าสู่ระบบไม่ได้' : 'เปิดใช้งานบัญชีนี้อีกครั้ง?' }}');">
+                                            @csrf
+                                            @method('PATCH')
+                                            <button type="submit"
+                                                    class="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100 transition-colors">
+                                                {{ $user->is_active ? 'ปิดใช้งาน' : 'เปิดใช้งาน' }}
+                                            </button>
+                                        </form>
                                         <form action="{{ route('users.destroy', $user->id) }}" method="POST"
                                               onsubmit="return confirm('ยืนยันการลบพนักงานคนนี้?');">
                                             @csrf

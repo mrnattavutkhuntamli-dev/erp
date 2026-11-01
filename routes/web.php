@@ -53,6 +53,7 @@ Route::middleware(['auth', '2fa'])->group(function () {
 
     // 2. หน้าจัดการผู้ใช้ (Admin)
     Route::middleware('permission:manage-users')->group(function () {
+        Route::patch('users/{user}/toggle-active', [UserController::class, 'toggleActive'])->name('users.toggle-active');
         Route::resource('users', UserController::class);
 
         Route::get('/settings', [SettingController::class, 'index'])->name('settings.index');
@@ -124,14 +125,24 @@ Route::middleware(['auth', '2fa'])->group(function () {
 
     // ✅ 5.3: Purchase Orders
     Route::middleware('permission:create-stock-document')->group(function () {
-        Route::get('/purchase-orders', [PurchaseOrderController::class, 'index'])->name('purchase-orders.index');
         Route::get('/purchase-orders/create', [PurchaseOrderController::class, 'create'])->name('purchase-orders.create');
         Route::post('/purchase-orders', [PurchaseOrderController::class, 'store'])->name('purchase-orders.store');
-        Route::get('/purchase-orders/{purchaseOrder}', [PurchaseOrderController::class, 'show'])->name('purchase-orders.show');
         Route::post('/purchase-orders/{purchaseOrder}/receive', [PurchaseOrderController::class, 'receive'])->name('purchase-orders.receive');
         Route::post('/purchase-orders/{purchaseOrder}/cancel', [PurchaseOrderController::class, 'cancel'])->name('purchase-orders.cancel');
         Route::delete('/purchase-orders/{purchaseOrder}', [PurchaseOrderController::class, 'destroy'])->name('purchase-orders.destroy');
     });
+
+    // ดู PO: ฝ่ายสต็อก (รับของ) และฝ่ายบัญชี (ตรวจเจ้าหนี้/จ่ายเงิน) เข้าดูได้
+    // หมายเหตุ: /purchase-orders/create ต้องประกาศก่อนกลุ่มนี้ (อยู่ในกลุ่มด้านบนแล้ว)
+    Route::middleware('permission:create-stock-document,manage-expenses')->group(function () {
+        Route::get('/purchase-orders', [PurchaseOrderController::class, 'index'])->name('purchase-orders.index');
+        Route::get('/purchase-orders/{purchaseOrder}', [PurchaseOrderController::class, 'show'])->name('purchase-orders.show');
+    });
+
+    // บันทึกการจ่ายเงินให้ Supplier (ตัดยอดเจ้าหนี้)
+    Route::post('/purchase-orders/{purchaseOrder}/pay', [PurchaseOrderController::class, 'pay'])
+        ->middleware('permission:manage-expenses')
+        ->name('purchase-orders.pay');
 
     // ✅ 5.3b: Stock Adjustments (แยกสิทธิ์จากเอกสารรับ/เบิก)
     Route::middleware('permission:adjust-stock')->group(function () {

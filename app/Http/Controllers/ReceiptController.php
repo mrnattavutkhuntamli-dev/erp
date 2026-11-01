@@ -1,6 +1,7 @@
 <?php
 namespace App\Http\Controllers;
 
+use App\Models\CashierShift;
 use App\Models\Receipt;
 use App\Models\Sale;
 use Illuminate\Http\Request;
@@ -164,6 +165,17 @@ class ReceiptController extends Controller
                     throw ValidationException::withMessages([
                         'receipt' => 'ใบรับเงินนี้ถูกยกเลิกไปแล้ว',
                     ]);
+                }
+
+                // ใบรับเงินสดที่อยู่ในกะที่ปิดแล้ว ห้ามยกเลิก (ยอดปิดกะถูกบันทึกไปแล้ว)
+                if ($receipt->payment_method === 'cash') {
+                    $closedShift = CashierShift::closedCovering((int) $receipt->user_id, $receipt->created_at);
+                    if ($closedShift) {
+                        throw ValidationException::withMessages([
+                            'receipt' => 'ไม่สามารถยกเลิกใบรับเงินสดในกะที่ปิดแล้วได้ (กะ#' . $closedShift->id . ' ปิดเมื่อ '
+                                . optional($closedShift->closed_at)->format('d/m/Y H:i') . ')',
+                        ]);
+                    }
                 }
 
                 $total   = $this->toSatang($sale->total);

@@ -125,6 +125,24 @@ class ProductController extends Controller
                 $product->carModels()->sync($request->car_models);
             }
 
+            // บันทึกยอดยกมาเป็นเอกสารสต็อก เพื่อให้รายงานเคลื่อนไหวสต็อกตรงกับยอดจริง
+            if ((int) $product->stock > 0) {
+                $openingDoc = \App\Models\StockDocument::create([
+                    'doc_no'        => 'IN-OPEN-' . $product->sku,
+                    'type'          => 'in',
+                    'date'          => now()->toDateString(),
+                    'receiver_name' => 'ยอดยกมา',
+                    'note'          => 'ยอดยกมาตอนสร้างสินค้า ' . $product->sku,
+                    'user_id'       => auth()->id(),
+                    'status'        => 'completed',
+                ]);
+                $openingDoc->items()->create([
+                    'product_id'  => $product->id,
+                    'quantity'    => (int) $product->stock,
+                    'stock_after' => (int) $product->stock,
+                ]);
+            }
+
             // จัดการอัปโหลดและเปลี่ยนชื่อรูปภาพ (ถ้ามี)
             if ($request->hasFile('images')) {
                 $folder = 'products';
@@ -185,16 +203,19 @@ class ProductController extends Controller
             'brand_id'         => 'nullable|exists:brands,id',
             'cost'             => 'required|numeric|min:0',
             'price'            => 'required|numeric|min:0',
-            'stock'            => 'required|integer|min:0',
+            // ไม่รับ 'stock' ที่นี่โดยตั้งใจ: การแก้สต็อกต้องผ่าน "ปรับปรุงสต็อก"/เอกสารสต็อก
+            // เพื่อให้มีประวัติ และไม่ไปทับยอดที่เปลี่ยนไประหว่างเปิดฟอร์มค้างไว้ (lost update)
             'description'      => 'nullable|string',
             'car_models'       => 'nullable|array',
             'car_models.*'     => 'exists:car_models,id',
             'images.*'         => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
             'delete_images'    => 'nullable|array',
+            'delete_images.*'  => 'integer',
             'primary_image_id' => ['nullable', \Illuminate\Validation\Rule::exists('product_images', 'id')->where('product_id', $product->id)],
         ]);
         // จัดการค่า Checkbox
         $validated['is_active'] = $request->has('is_active') ? true : false;
+        unset($validated['stock']); // กันไว้อีกชั้น เผื่อมีใครเพิ่มกฎ validate ในอนาคต
         return DB::transaction(function () use ($request, $product, $validated) {
             $product->update($validated);
             // อัปเดตความสัมพันธ์รุ่นรถ (sync จะลบของเก่าที่ไม่ถูกเลือกออกและเพิ่มของใหม่ให้อัตโนมัติ)
@@ -241,17 +262,21 @@ class ProductController extends Controller
                 }
             }
             // จัดการเปลี่ยนรูปหน้าปก (Primary Image) ถ้ามีการเลือกเปลี่ยน
-            if ($request->filled('primary_image_id')) {
+            // ถ้ารูปที่เลือกเป็นหน้าปกถูกสั่งลบในคราวเดียวกัน ให้ข้าม (ไม่งั้นสินค้าจะไม่เหลือรูปหน้าปก)
+            $primaryId = $request->primary_image_id;
+            if ($primaryId && in_array((int) $primaryId, array_map('intval', (array) $request->delete_images), true)) {
+                $primaryId = null;
+            }
+            if ($primaryId) {
                 // ปรับรูปทั้งหมดของสินค้านี้ให้ไม่เป็น primary ก่อน
                 $product->images()->update(['is_primary' => false]);
                 // ตั้งรูปภาพที่เลือกให้เป็น primary
-                $product->images()->where('id', $request->primary_image_id)->update(['is_primary' => true]);
-            } else {
-                // ป้องกันกรณีที่รูปที่เป็น primary ถูกลบไป ให้ตั้งรูปแรกที่เหลืออยู่เป็น primary อัตโนมัติ
-                $firstImage = $product->images()->first();
-                if (! $product->images()->where('is_primary', true)->exists() && $firstImage) {
-                    $firstImage->update(['is_primary' => true]);
-                }
+                $product->images()->where('id', $primaryId)->update(['is_primary' => true]);
+            }
+            // ป้องกันกรณีที่รูปที่เป็น primary ถูกลบไป ให้ตั้งรูปแรกที่เหลืออยู่เป็น primary อัตโนมัติ
+            $firstImage = $product->images()->first();
+            if (! $product->images()->where('is_primary', true)->exists() && $firstImage) {
+                $firstImage->update(['is_primary' => true]);
             }
             return redirect()->route('products.index')->with('success', 'แก้ไขข้อมูลสินค้าสำเร็จ!');
         });
@@ -273,8 +298,9 @@ class ProductController extends Controller
         $hasStockDocs   = $product->stockDocumentItems()->exists();
         $hasPOs         = $product->purchaseOrderItems()->exists();
         $hasAdjustments = $product->stockAdjustments()->exists();
+        $hasQuotations  = $product->quotationItems()->exists();
 
-        if ($hasSaleItems || $hasStockDocs || $hasPOs || $hasAdjustments) {
+        if ($hasSaleItems || $hasStockDocs || $hasPOs || $hasAdjustments || $hasQuotations) {
             return back()->with('error', 'ไม่สามารถลบสินค้านี้ได้ เนื่องจากมีประวัติการใช้งานอยู่ (แนะนำให้ปิดการใช้งานแทน)');
         }
 

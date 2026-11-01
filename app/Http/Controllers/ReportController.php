@@ -22,25 +22,25 @@ class ReportController extends Controller
         $endDate   = $request->input('end_date', now()->format('Y-m-d'));
 
         // 1. ยอดขายรวม
-        $totalSales = Sale::whereBetween(DB::raw('DATE(created_at)'), [$startDate, $endDate])
+        $totalSales = Sale::whereBetween('created_at', [$startDate . ' 00:00:00', $endDate . ' 23:59:59'])
             ->where('status', 'completed')
             ->sum('total');
 
         // 2. จำนวนบิล
-        $totalBills = Sale::whereBetween(DB::raw('DATE(created_at)'), [$startDate, $endDate])
+        $totalBills = Sale::whereBetween('created_at', [$startDate . ' 00:00:00', $endDate . ' 23:59:59'])
             ->where('status', 'completed')
             ->count();
 
         // 3. กำไรขั้นต้น
         $grossProfit = SaleItem::whereHas('sale', function ($q) use ($startDate, $endDate) {
-            $q->whereBetween(DB::raw('DATE(created_at)'), [$startDate, $endDate])
+            $q->whereBetween('created_at', [$startDate . ' 00:00:00', $endDate . ' 23:59:59'])
                 ->where('status', 'completed');
         })
-            ->selectRaw('SUM(sale_items.total - (sale_items.cost_at_sale * sale_items.quantity)) as profit')
+            ->selectRaw('SUM(sale_items.total - (CASE WHEN sale_items.cost_at_sale > 0 THEN sale_items.cost_at_sale ELSE COALESCE((SELECT p.cost FROM products p WHERE p.id = sale_items.product_id), 0) END * sale_items.quantity)) as profit')
             ->value('profit') ?? 0;
 
         // หักส่วนลดระดับบิล
-        $grossProfit -= Sale::whereBetween(DB::raw('DATE(created_at)'), [$startDate, $endDate])
+        $grossProfit -= Sale::whereBetween('created_at', [$startDate . ' 00:00:00', $endDate . ' 23:59:59'])
             ->where('status', 'completed')->sum('discount');
 
         // 4. สินค้าขายดี 10 อันดับ
@@ -48,7 +48,7 @@ class ReportController extends Controller
             DB::raw('SUM(quantity) as total_qty'),
             DB::raw('SUM(total) as total_revenue'))
             ->whereHas('sale', function ($q) use ($startDate, $endDate) {
-                $q->whereBetween(DB::raw('DATE(created_at)'), [$startDate, $endDate])
+                $q->whereBetween('created_at', [$startDate . ' 00:00:00', $endDate . ' 23:59:59'])
                     ->where('status', 'completed');
             })
             ->groupBy('product_id')
@@ -62,22 +62,17 @@ class ReportController extends Controller
             DB::raw('DATE(created_at) as date'),
             DB::raw('SUM(total) as total')
         )
-            ->whereBetween(DB::raw('DATE(created_at)'), [$startDate, $endDate])
+            ->whereBetween('created_at', [$startDate . ' 00:00:00', $endDate . ' 23:59:59'])
             ->where('status', 'completed')
             ->groupBy('date')
             ->orderBy('date')
-            ->get();
-
-        // 6. รายงานสินค้าคงเหลือ
-        $stockReport = Product::with(['category', 'brand'])
-            ->orderBy('stock')
             ->get();
 
         // 7. ลูกค้าที่ซื้อมากที่สุด 5 อันดับ
         $topCustomers = Sale::select('customer_id',
             DB::raw('COUNT(*) as total_bills'),
             DB::raw('SUM(total) as total_spent'))
-            ->whereBetween(DB::raw('DATE(created_at)'), [$startDate, $endDate])
+            ->whereBetween('created_at', [$startDate . ' 00:00:00', $endDate . ' 23:59:59'])
             ->where('status', 'completed')
             ->whereNotNull('customer_id')
             ->groupBy('customer_id')
@@ -88,7 +83,7 @@ class ReportController extends Controller
 
         // 8. ประวัติการขายล่าสุด 10 บิล
         $recentSales = Sale::with(['customer', 'user'])
-            ->whereBetween(DB::raw('DATE(created_at)'), [$startDate, $endDate])
+            ->whereBetween('created_at', [$startDate . ' 00:00:00', $endDate . ' 23:59:59'])
             ->where('status', 'completed')
             ->latest()
             ->limit(10)
@@ -100,7 +95,7 @@ class ReportController extends Controller
             ->join('products', 'products.id', '=', 'sale_items.product_id')
             ->leftJoin('categories', 'categories.id', '=', 'products.category_id')
             ->where('sales.status', 'completed')
-            ->whereBetween(DB::raw('DATE(sales.created_at)'), [$startDate, $endDate])
+            ->whereBetween('sales.created_at', [$startDate . ' 00:00:00', $endDate . ' 23:59:59'])
             ->groupBy('categories.id', 'categories.name')
             ->selectRaw("COALESCE(categories.name, 'ไม่มีหมวดหมู่') as name, SUM(sale_items.total) as total")
             ->get()
@@ -108,7 +103,7 @@ class ReportController extends Controller
 
         return view('reports.index', compact(
             'startDate', 'endDate', 'totalSales', 'totalBills',
-            'grossProfit', 'topProducts', 'dailySales', 'stockReport',
+            'grossProfit', 'topProducts', 'dailySales',
             'topCustomers', 'recentSales', 'categorySales'
         ));
     }
@@ -123,28 +118,28 @@ class ReportController extends Controller
         $startDate = $request->input('start_date', now()->startOfMonth()->format('Y-m-d'));
         $endDate   = $request->input('end_date', now()->format('Y-m-d'));
 
-        $totalSales = Sale::whereBetween(DB::raw('DATE(created_at)'), [$startDate, $endDate])
+        $totalSales = Sale::whereBetween('created_at', [$startDate . ' 00:00:00', $endDate . ' 23:59:59'])
             ->where('status', 'completed')->sum('total');
 
-        $totalBills = Sale::whereBetween(DB::raw('DATE(created_at)'), [$startDate, $endDate])
+        $totalBills = Sale::whereBetween('created_at', [$startDate . ' 00:00:00', $endDate . ' 23:59:59'])
             ->where('status', 'completed')->count();
 
         $grossProfit = SaleItem::whereHas('sale', function ($q) use ($startDate, $endDate) {
-            $q->whereBetween(DB::raw('DATE(created_at)'), [$startDate, $endDate])
+            $q->whereBetween('created_at', [$startDate . ' 00:00:00', $endDate . ' 23:59:59'])
                 ->where('status', 'completed');
         })
-            ->selectRaw('SUM(sale_items.total - (sale_items.cost_at_sale * sale_items.quantity)) as profit')
+            ->selectRaw('SUM(sale_items.total - (CASE WHEN sale_items.cost_at_sale > 0 THEN sale_items.cost_at_sale ELSE COALESCE((SELECT p.cost FROM products p WHERE p.id = sale_items.product_id), 0) END * sale_items.quantity)) as profit')
             ->value('profit') ?? 0;
 
         // หักส่วนลดระดับบิล
-        $grossProfit -= Sale::whereBetween(DB::raw('DATE(created_at)'), [$startDate, $endDate])
+        $grossProfit -= Sale::whereBetween('created_at', [$startDate . ' 00:00:00', $endDate . ' 23:59:59'])
             ->where('status', 'completed')->sum('discount');
 
         $topProducts = SaleItem::select('product_id',
             DB::raw('SUM(quantity) as total_qty'),
             DB::raw('SUM(total) as total_revenue'))
             ->whereHas('sale', function ($q) use ($startDate, $endDate) {
-                $q->whereBetween(DB::raw('DATE(created_at)'), [$startDate, $endDate])
+                $q->whereBetween('created_at', [$startDate . ' 00:00:00', $endDate . ' 23:59:59'])
                     ->where('status', 'completed');
             })
             ->groupBy('product_id')

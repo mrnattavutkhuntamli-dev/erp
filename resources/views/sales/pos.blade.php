@@ -20,6 +20,27 @@
         let cart = [];
         let payMethod = 'cash';
 
+        // เพดานส่วนลด (%) ของผู้ใช้นี้ (0 = ไม่จำกัด) ต้องตรงกับที่ SaleController ตรวจ
+        const MAX_DISCOUNT_PERCENT = @json(auth()->user()->hasRole('admin') ? 0 : (float) config('pos.max_discount_percent', 0));
+
+        // idempotency key: ใช้ key เดิมจนกว่าจะขายสำเร็จ/โหลดหน้าใหม่
+        // (ถ้าเครือข่ายหลุดหลังบันทึกบิลแล้ว กดซ้ำจะได้บิลเดิม ไม่เกิดบิลซ้ำ)
+        // ไม่พึ่ง crypto.randomUUID() เพราะใช้ไม่ได้บน http ที่ไม่ใช่ localhost
+        function newIdempotencyKey() {
+            const b = new Uint8Array(16);
+            crypto.getRandomValues(b);
+            b[6] = (b[6] & 0x0f) | 0x40;
+            b[8] = (b[8] & 0x3f) | 0x80;
+            const h = Array.from(b, x => x.toString(16).padStart(2, '0')).join('');
+            return h.slice(0, 8) + '-' + h.slice(8, 12) + '-' + h.slice(12, 16) + '-' + h.slice(16, 20) + '-' + h.slice(20);
+        }
+        let idempotencyKey = newIdempotencyKey();
+
+        // กด Back แล้วหน้ากลับมาจากแคชเบราว์เซอร์ → โหลดใหม่ (สต็อกล่าสุด, ตะกร้าว่าง, key ใหม่)
+        window.addEventListener('pageshow', e => {
+            if (e.persisted) location.reload();
+        });
+
         // Pagination / Filter
         let currentPage = 1;
         const itemsPerPage = 24;
@@ -240,14 +261,31 @@
             refreshTotals();
         }
 
+        // คำนวณเป็นสตางค์ (int) ทั้งหมด ให้ตรงกับฝั่ง server
         function getTotals() {
-            const subtotal = cart.reduce((s, i) => s + i.price * i.quantity, 0);
-            let discount = discountType === 'percent' ? subtotal * (discountValue / 100) : discountValue;
-            discount = Math.min(Math.max(discount, 0), subtotal);
+            const toCents = n => Math.round(Number(n) * 100);
+
+            const subtotalCents = cart.reduce((s, i) => s + toCents(i.price) * i.quantity, 0);
+
+            // ส่วนลด % ปัดลง (ไม่เกินสิทธิ์) ส่วนลดบาทปัดเป็นสตางค์
+            let discountCents = discountType === 'percent' ?
+                Math.floor(subtotalCents * (discountValue / 100) + 1e-9) :
+                toCents(discountValue);
+            discountCents = Math.min(Math.max(discountCents, 0), subtotalCents);
+
+            const maxDiscountCents = MAX_DISCOUNT_PERCENT > 0 ?
+                Math.floor(subtotalCents * MAX_DISCOUNT_PERCENT / 100 + 1e-9) :
+                subtotalCents;
+
             return {
-                subtotal,
-                discount,
-                total: subtotal - discount
+                subtotalCents,
+                discountCents,
+                totalCents: subtotalCents - discountCents,
+                subtotal: subtotalCents / 100,
+                discount: discountCents / 100,
+                total: (subtotalCents - discountCents) / 100,
+                overLimit: discountCents > maxDiscountCents,
+                maxDiscount: maxDiscountCents / 100,
             };
         }
 
@@ -283,45 +321,57 @@
             const t = getTotals();
             $('subtotal').textContent = baht(t.subtotal);
             $('discount-display').textContent = '-' + baht(t.discount);
-            $('discount-row').hidden = t.discount <= 0;
+            $('discount-row').hidden = t.discountCents <= 0;
             $('total').textContent = baht(t.total);
-            calculateChange(t.total);
+
+            const warn = $('discount-warn');
+            if (warn) {
+                warn.hidden = !t.overLimit;
+                if (t.overLimit) {
+                    warn.textContent = 'ส่วนลดเกินสิทธิ์ (สูงสุด ' + MAX_DISCOUNT_PERCENT + '% = ' + baht(t.maxDiscount) + ')';
+                }
+            }
+
+            calculateChange(t.totalCents);
             updatePayButton(t);
         }
 
-        function calculateChange(total) {
+        function calculateChange(totalCents) {
             // ช่องรับเงินแสดงเฉพาะเงินสด
             if (payMethod !== 'cash') return;
 
-            const received = parseFloat($('received_amount').value) || 0;
-            const change = received - total;
+            const receivedCents = Math.round((parseFloat($('received_amount').value) || 0) * 100);
+            const changeCents = receivedCents - totalCents;
             const row = $('change-row');
             const el = $('change_amount');
 
             if (cart.length === 0) {
                 el.textContent = '฿0.00';
                 row.className = 'pos-change';
-            } else if (change >= 0) {
-                el.textContent = baht(change);
+            } else if (changeCents >= 0) {
+                el.textContent = baht(changeCents / 100);
                 row.className = 'pos-change is-ok';
             } else {
-                el.textContent = 'ขาดอีก ' + baht(-change);
+                el.textContent = 'ขาดอีก ' + baht(Math.abs(changeCents) / 100);
                 row.className = 'pos-change is-short';
             }
         }
 
         function updatePayButton(t) {
             const btn = $('pay-btn');
-            const received = parseFloat($('received_amount').value) || 0;
+            const receivedCents = Math.round((parseFloat($('received_amount').value) || 0) * 100);
             const isCredit = payMethod === 'credit';
             const hasCustomer = $('customer_id').value !== '';
 
-            const ok = cart.length > 0 && (isCredit ? hasCustomer : (payMethod !== 'cash' || received >= t.total));
+            const ok = !t.overLimit && cart.length > 0 &&
+                (isCredit ? hasCustomer : (payMethod !== 'cash' || receivedCents >= t.totalCents));
 
             btn.disabled = !ok;
 
             if (cart.length === 0) {
                 btn.textContent = 'ชำระเงิน';
+            } else if (t.overLimit) {
+                btn.textContent = 'ส่วนลดเกินสิทธิ์';
             } else if (isCredit && !hasCustomer) {
                 btn.textContent = 'เลือกลูกค้าก่อนขายเชื่อ';
             } else {
@@ -342,7 +392,9 @@
         }
 
         function quickCash(amount) {
-            $('received_amount').value = amount === null ? getTotals().total.toFixed(2) : amount;
+            $('received_amount').value = amount === null ?
+                (getTotals().totalCents / 100).toFixed(2) :
+                Number(amount).toFixed(2);
             refreshTotals();
         }
 
@@ -580,15 +632,22 @@
                 }
 
                 const t = getTotals();
+
+                if (t.overLimit) {
+                    toast('ส่วนลดเกินสิทธิ์ที่กำหนด', 'error');
+                    return;
+                }
+
                 const isCredit = payMethod === 'credit';
-                const received = isCredit ? 0 : (payMethod === 'cash' ? (parseFloat($('received_amount').value) || 0) : t.total);
+                const receivedCents = isCredit ? 0 :
+                    (payMethod === 'cash' ? Math.round((parseFloat($('received_amount').value) || 0) * 100) : t.totalCents);
 
                 if (isCredit && !$('customer_id').value) {
                     toast('ไม่สามารถขายเชื่อให้ลูกค้าทั่วไปได้ กรุณาเลือกลูกค้าที่มีข้อมูล', 'error');
                     return;
                 }
 
-                if (payMethod === 'cash' && received < t.total) {
+                if (payMethod === 'cash' && receivedCents < t.totalCents) {
                     toast('รับเงินมาไม่เพียงพอ', 'error');
                     return;
                 }
@@ -597,36 +656,52 @@
                 btn.disabled = true;
                 btn.textContent = 'กำลังบันทึก...';
 
+                // ส่งเฉพาะ id + จำนวน ราคา/สต็อกให้ server คำนวณเอง
                 const formData = {
-                    _token: '{{ csrf_token() }}',
-                    customer_id: $('customer_id').value,
-                    items: cart,
-                    discount: t.discount,
+                    customer_id: $('customer_id').value || null,
+                    items: cart.map(i => ({
+                        product_id: i.product_id,
+                        quantity: i.quantity
+                    })),
+                    discount: (t.discountCents / 100).toFixed(2),
                     payment_method: payMethod,
-                    received_amount: received,
-                    idempotency_key: '{{ Str::uuid() }}',
+                    received_amount: (receivedCents / 100).toFixed(2),
+                    idempotency_key: idempotencyKey,
                 };
 
                 fetch('{{ route('sales.store') }}', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
-                            'Accept': 'application/json'
+                            'Accept': 'application/json',
+                            'X-CSRF-TOKEN': '{{ csrf_token() }}'
                         },
                         body: JSON.stringify(formData)
                     })
-                    .then(res => res.json())
-                    .then(data => {
-                        if (data.success) {
+                    .then(async res => {
+                        const data = await res.json().catch(() => ({}));
+
+                        if (res.ok && data.success) {
                             window.location.href = data.redirect_url;
-                        } else {
-                            toast('ข้อผิดพลาด: ' + data.message, 'error');
-                            refreshTotals();
+                            return;
                         }
+
+                        // ไม่สร้าง key ใหม่ตรงนี้: ถ้าบิลถูกบันทึกไปแล้ว การกดซ้ำจะได้บิลเดิม ไม่ซ้ำ
+                        let msg = data.message || 'เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง';
+                        if (res.status === 419 || res.status === 401) {
+                            msg = 'เซสชันหมดอายุ กรุณารีเฟรชหน้าหรือเข้าสู่ระบบใหม่';
+                        } else if (data.errors) {
+                            msg = Object.values(data.errors)[0][0];
+                        }
+                        toast(msg, 'error');
+                        btn.disabled = false;
+                        refreshTotals();
                     })
                     .catch(err => {
-                        toast('เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ กรุณาลองใหม่', 'error');
+                        // เครือข่ายล้ม: บิลอาจถูกบันทึกไปแล้ว กดชำระซ้ำได้ ระบบกันบิลซ้ำด้วย key เดิม
+                        toast('เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ กรุณากดชำระอีกครั้ง', 'error');
                         console.error(err);
+                        btn.disabled = false;
                         refreshTotals();
                     });
             });
@@ -947,12 +1022,17 @@
                         </div>
                         <input type="number" id="discount-input" value="0" min="0" step="any"
                             oninput="onDiscountInput()" class="pos-input num" placeholder="0">
+                        @php
+                            $maxPct = auth()->user()->hasRole('admin') ? 0 : (float) config('pos.max_discount_percent', 0);
+                        @endphp
                         <div class="pos-quick" style="margin: 8px 0 0;">
-                            <button type="button" onclick="quickPercent(5)">5%</button>
-                            <button type="button" onclick="quickPercent(10)">10%</button>
-                            <button type="button" onclick="quickPercent(20)">20%</button>
-                            <button type="button" onclick="quickPercent(50)">50%</button>
+                            @foreach ([5, 10, 20, 50] as $p)
+                                @if ($maxPct == 0 || $p <= $maxPct)
+                                    <button type="button" onclick="quickPercent({{ $p }})">{{ $p }}%</button>
+                                @endif
+                            @endforeach
                         </div>
+                        <p id="discount-warn" class="pos-label" style="color: var(--danger); margin: 8px 0 0;" hidden></p>
                     </details>
 
                     <div class="pos-pay-area">

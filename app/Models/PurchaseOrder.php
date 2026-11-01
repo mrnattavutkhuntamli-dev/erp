@@ -8,12 +8,26 @@ class PurchaseOrder extends Model
     // กำหนดฟิลด์ที่อนุญาตให้บันทึกข้อมูลแบบ Mass Assignment ได้
     protected $fillable = [
         'po_no', 'supplier_id', 'user_id', 'order_date',
-        'expected_date', 'status', 'total_amount', 'note'
+        'expected_date', 'received_at', 'status', 'total_amount', 'paid_amount', 'note'
     ];
     protected $casts = [
         'order_date'    => 'date',
         'expected_date' => 'date',
+        'received_at'   => 'datetime',
+        'total_amount'  => 'decimal:2',
+        'paid_amount'   => 'decimal:2',
     ];
+
+    /** ยอดค้างจ่าย Supplier (ไม่ติดลบ) */
+    public function getRemainingAmountAttribute(): float
+    {
+        return max(0, round((float) $this->total_amount - (float) $this->paid_amount, 2));
+    }
+
+    public function stockDocuments()
+    {
+        return $this->hasMany(StockDocument::class);
+    }
     /**
      * ความสัมพันธ์แบบ One-to-Many (1 ใบสั่งซื้อ มีได้หลายรายการสินค้า)
      * ฝั่ง PurchaseOrder เป็นเจ้าของ (Has Many) PurchaseOrderItem

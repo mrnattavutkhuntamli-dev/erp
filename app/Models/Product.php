@@ -76,4 +76,9 @@ class Product extends Model
     {
         return $this->hasMany(StockAdjustment::class);
     }
+
+    public function quotationItems()
+    {
+        return $this->hasMany(QuotationItem::class);
+    }
 }

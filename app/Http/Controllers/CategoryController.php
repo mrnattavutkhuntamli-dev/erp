@@ -35,7 +35,7 @@ class CategoryController extends Controller
            'name' => 'required|string|max:255|unique:categories,name',
             'description' => 'nullable|string',
         ]);
-        $validated['slug'] = Str::slug($validated['name']) . '-' . rand(100, 999);
+        $validated['slug'] = $this->uniqueSlug($validated['name']);
         Category::create($validated);
         return redirect()->route('categories.index')->with('success', 'เพิ่มหมวดหมู่สำเร็จ!');
     }
@@ -58,7 +58,7 @@ class CategoryController extends Controller
             'description' => 'nullable|string',
         ]);
         if ($request->name !== $category->name) {
-            $validated['slug'] = Str::slug($validated['name']) . '-' . rand(100, 999);
+            $validated['slug'] = $this->uniqueSlug($validated['name'], $category->id);
         }
 
         $category->update($validated);
@@ -75,5 +75,25 @@ class CategoryController extends Controller
         }
         $category->delete();
         return redirect()->route('categories.index')->with('success', 'ลบหมวดหมู่สำเร็จ!');
+    }
+
+    /**
+     * สร้าง slug ที่ไม่ซ้ำ
+     * - ชื่อภาษาไทยล้วน Str::slug() จะได้ค่าว่าง จึงใช้คำว่า 'category' แทน
+     * - ต่อท้ายด้วยตัวอักษรสุ่ม 6 ตัว แล้ววนเช็กจนกว่าจะไม่ซ้ำ (เดิมสุ่มเลข 100-999 มีแค่ 900 ค่า ทำให้ชนกันและ error 500)
+     */
+    private function uniqueSlug(string $name, ?int $ignoreId = null): string
+    {
+        $base = Str::slug($name) ?: 'category';
+
+        do {
+            $slug = $base . '-' . Str::lower(Str::random(6));
+        } while (
+            Category::where('slug', $slug)
+                ->when($ignoreId, fn ($q) => $q->where('id', '!=', $ignoreId))
+                ->exists()
+        );
+
+        return $slug;
     }
 }

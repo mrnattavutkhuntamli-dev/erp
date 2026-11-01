@@ -33,12 +33,12 @@ class ArAgingController extends Controller
         $unpaidSales = Sale::with('customer')
             ->whereIn('payment_status', ['unpaid', 'partial'])
             ->where('status', 'completed')
-            ->orderBy('created_at', 'asc')
+            ->orderByRaw('COALESCE(due_date, created_at) asc')
             ->get();
 
         $agingData = [];
         $totals    = [
-            'current'      => 0, // 0-30 วัน
+            'current'      => 0, // ยังไม่เกินกำหนด - เกินกำหนด 30 วัน
             'days_31_60'   => 0, // 31-60 วัน
             'days_60_plus' => 0, // 60+ วัน
             'total'        => 0,
@@ -49,7 +49,12 @@ class ArAgingController extends Controller
         foreach ($unpaidSales as $sale) {
             // คำนวณยอดค้างชำระ (ปัดเศษทศนิยม 2 ตำแหน่ง และป้องกันติดลบ)
             $dueAmount   = round(max(0, $sale->total - $sale->paid_amount), 2);
-            $daysOverdue = (int) $sale->created_at->diffInDays($now);
+            // นับจาก "วันครบกำหนด" (due_date) — ถ้าเป็นบิลเก่าที่ไม่มี due_date ให้ใช้วันที่ขาย + เครดิตเทอมเริ่มต้น
+            $dueDate     = $sale->due_date
+                ?? $sale->created_at->copy()->addDays((int) config('pos.credit_days'));
+            $daysOverdue = $now->startOfDay()->gt($dueDate->copy()->startOfDay())
+                ? (int) $dueDate->copy()->startOfDay()->diffInDays($now->copy()->startOfDay())
+                : 0; // ยังไม่ถึงกำหนด = 0 วัน
 
             // จัดกลุ่มตามลูกค้า
             $customerId   = $sale->customer_id ?? 0;
@@ -70,6 +75,7 @@ class ArAgingController extends Controller
             $agingData[$customerId]['invoices'][] = [
                 'invoice_no' => $sale->invoice_no,
                 'date'       => $sale->created_at->format('d/m/Y'),
+                'due_date'   => $dueDate->format('d/m/Y'),
                 'total'      => $sale->total,
                 'paid'       => $sale->paid_amount,
                 'due'        => $dueAmount,

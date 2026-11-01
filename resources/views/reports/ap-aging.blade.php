@@ -78,7 +78,7 @@
             <div class="flex gap-3">
                 <span class="mt-1.5 h-2.5 w-2.5 rounded-full bg-teal-400 shrink-0"></span>
                 <div>
-                    <p class="text-sm text-slate-300">ยังไม่ครบกำหนด (0-30 วัน)</p>
+                    <p class="text-sm text-slate-300">ค้างจ่าย 0-30 วัน</p>
                     <p class="ap-num text-xl font-semibold">฿{{ number_format($totals['current'], 2) }}</p>
                     <p class="text-xs text-slate-500 ap-num">{{ $pCurrent }}% ของยอดค้าง</p>
                 </div>
@@ -86,7 +86,7 @@
             <div class="flex gap-3">
                 <span class="mt-1.5 h-2.5 w-2.5 rounded-full bg-amber-400 shrink-0"></span>
                 <div>
-                    <p class="text-sm text-slate-300">ค้าง 31-60 วัน</p>
+                    <p class="text-sm text-slate-300">ค้างจ่าย 31-60 วัน</p>
                     <p class="ap-num text-xl font-semibold">฿{{ number_format($totals['days_31_60'], 2) }}</p>
                     <p class="text-xs text-slate-500 ap-num">{{ $p3160 }}% ของยอดค้าง</p>
                 </div>
@@ -94,7 +94,7 @@
             <div class="flex gap-3">
                 <span class="mt-1.5 h-2.5 w-2.5 rounded-full bg-rose-500 shrink-0"></span>
                 <div>
-                    <p class="text-sm text-slate-300">ค้างเกิน 60 วัน</p>
+                    <p class="text-sm text-slate-300">ค้างจ่ายเกิน 60 วัน</p>
                     <p class="ap-num text-xl font-semibold text-rose-300">฿{{ number_format($totals['days_60_plus'], 2) }}</p>
                     <p class="text-xs text-slate-500 ap-num">{{ $p60 }}% ของยอดค้าง</p>
                 </div>
@@ -164,7 +164,7 @@
                         <tbody class="divide-y divide-slate-100">
                             @foreach($supplier['pos'] as $po)
                                 <tr class="hover:bg-slate-50/70">
-                                    <td class="px-5 py-3 font-medium text-slate-900">{{ $po['po_no'] }}</td>
+                                    <td class="px-5 py-3 font-medium text-slate-900"><a href="{{ route('purchase-orders.show', $po['id']) }}" class="text-blue-700 hover:underline">{{ $po['po_no'] }}</a></td>
                                     <td class="px-5 py-3 text-slate-600 ap-num">{{ $po['date'] }}</td>
                                     <td class="px-5 py-3 text-center">
                                         @if($po['status'] === 'pending')

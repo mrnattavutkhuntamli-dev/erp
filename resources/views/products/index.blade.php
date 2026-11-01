@@ -93,7 +93,7 @@
                         <th class="px-5 py-3 font-medium">สินค้า</th>
                         <th class="px-5 py-3 font-medium">SKU</th>
                         <th class="px-5 py-3 font-medium">หมวดหมู่</th>
-                        <th class="px-5 py-3 font-medium text-right">ราคาต้นทุน</th>
+                        @can('view-reports')<th class="px-5 py-3 font-medium text-right">ราคาต้นทุน</th>@endcan
                         <th class="px-5 py-3 font-medium text-right">ราคาขาย</th>
                         <th class="px-5 py-3 font-medium">สต็อก</th>
                         <th class="px-5 py-3 font-medium text-right">จัดการ</th>
@@ -151,7 +151,7 @@
                                 @endif
                             </td>
 
-                            <td class="px-5 py-3 text-right text-slate-500">฿{{ number_format($product->cost, 2) }}</td>
+                            @can('view-reports')<td class="px-5 py-3 text-right text-slate-500">฿{{ number_format($product->cost, 2) }}</td>@endcan
                             <td class="px-5 py-3 text-right font-medium text-slate-900">
                                 ฿{{ number_format($product->price, 2) }}</td>
 
@@ -214,7 +214,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="7" class="px-5 py-14 text-center">
+                            <td colspan="{{ auth()->user()->can('view-reports') ? 7 : 6 }}" class="px-5 py-14 text-center">
                                 <div
                                     class="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-400">
                                     <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"

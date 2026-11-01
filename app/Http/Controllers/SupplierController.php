@@ -37,8 +37,10 @@ class SupplierController extends Controller
             'phone'        => 'nullable|string|max:50',
             'email'        => 'nullable|email|max:255|unique:suppliers,email',
             'address' => 'nullable|string',
+            'credit_term_days' => 'nullable|integer|min:0|max:365',
         ]);
 
+        $validated['credit_term_days'] = (int) ($validated['credit_term_days'] ?? 0);
         $validated['is_active'] = $request->has('is_active') ? true:false;
         Supplier::create($validated);
         return redirect()->route('suppliers.index')->with('success', 'เพิ่มซัพพลายเออร์สำเร็จ!');
@@ -63,7 +65,9 @@ class SupplierController extends Controller
             'phone' => 'nullable|string|max:50',
             'email' => 'nullable|email|max:255|unique:suppliers,email,' . $supplier->id,
             'address' => 'nullable|string',
+            'credit_term_days' => 'nullable|integer|min:0|max:365',
         ]);
+        $validated['credit_term_days'] = (int) ($validated['credit_term_days'] ?? 0);
         $validated['is_active'] = $request->has('is_active') ? true : false;
         $supplier->update($validated);
         return redirect()->route('suppliers.index')->with('success', 'อัปเดตซัพพลายเออร์สำเร็จ!');

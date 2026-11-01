@@ -9,7 +9,7 @@ class StockDocumentItem extends Model
     use HasFactory;
 
     protected $fillable = [
-        'stock_document_id', 'product_id', 'quantity', 'stock_after'
+        'stock_document_id', 'product_id', 'quantity', 'stock_after', 'cost_before', 'cost_after'
     ];
     public function document()
     {

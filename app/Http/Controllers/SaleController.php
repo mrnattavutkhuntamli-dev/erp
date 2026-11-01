@@ -6,9 +6,12 @@ use App\Models\Category;
 use App\Models\Customer;
 use App\Models\Product;
 use App\Models\Sale;
+use App\Support\Money;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 
 class SaleController extends Controller
 {
@@ -48,7 +51,7 @@ class SaleController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'customer_id'        => 'nullable|exists:customers,id',
+            'customer_id'        => ['nullable', Rule::exists('customers', 'id')->where('is_active', true)],
             'items'              => 'required|array|min:1',
             'items.*.product_id' => 'required|exists:products,id',
             'items.*.quantity'   => 'required|integer|min:1',
@@ -57,6 +60,7 @@ class SaleController extends Controller
             'received_amount'    => 'nullable|numeric|min:0',
             'idempotency_key'    => 'nullable|uuid',
         ]);
+
         if ($validated['payment_method'] === 'credit' && empty($validated['customer_id'])) {
             return response()->json([
                 'success' => false,
@@ -64,13 +68,13 @@ class SaleController extends Controller
             ], 422);
         }
 
-        // ต้องอยู่ในช่วงกะของตัวเองจึงขายได้ (ยกเว้น admin)
         if ($reason = CashierShift::sellBlockReason(auth()->user())) {
             return response()->json(['success' => false, 'message' => $reason], 422);
         }
+
         try {
             return DB::transaction(function () use ($validated) {
-                // ✅ ตรวจ Idempotency (ป้องกันกดซ้ำ)
+                // ✅ Idempotency
                 if (! empty($validated['idempotency_key'])) {
                     $existing = Sale::where('idempotency_key', $validated['idempotency_key'])->first();
                     if ($existing) {
@@ -82,13 +86,17 @@ class SaleController extends Controller
                     }
                 }
 
-                $subtotal      = 0;
+                // ✅ ข้อ 3: คำนวณเป็นสตางค์ (int) ทั้งหมด
+                $subtotalCents = 0;
                 $saleItemsData = [];
 
-                // รวมสินค้าซ้ำ + เรียงตาม id (กัน deadlock / ตัดสต็อกเกิน)
+                // รวมสินค้าซ้ำ + เรียงตาม product_id (กัน deadlock)
                 $lines = collect($validated['items'])
                     ->groupBy('product_id')
-                    ->map(fn ($g, $id) => ['product_id' => (int) $id, 'quantity' => (int) $g->sum('quantity')])
+                    ->map(fn ($g, $id) => [
+                        'product_id' => (int) $id,
+                        'quantity'   => (int) $g->sum('quantity'),
+                    ])
                     ->sortKeys()
                     ->values();
 
@@ -102,55 +110,81 @@ class SaleController extends Controller
                         throw new \DomainException("สินค้า '{$product->name}' มีสต็อกไม่พอ (เหลือ {$product->stock})");
                     }
 
-                    $itemTotal = $product->price * $item['quantity'];
-                    $subtotal  += $itemTotal;
+                    $unitCents      = Money::toCents($product->price);
+                    $itemTotalCents = $unitCents * (int) $item['quantity'];
+                    $subtotalCents += $itemTotalCents;
 
                     $saleItemsData[] = [
                         'product'      => $product,
                         'quantity'     => $item['quantity'],
-                        'price'        => $product->price,
+                        'price_cents'  => $unitCents,
                         'cost_at_sale' => $product->cost,
-                        'total'        => $itemTotal,
+                        'total_cents'  => $itemTotalCents,
                     ];
                 }
 
-                $discount = $validated['discount'] ?? 0;
-                if ($discount > $subtotal) {
-                    throw new \DomainException("ส่วนลด (฿" . number_format($discount, 2) . ") เกินยอดรวม (฿" . number_format($subtotal, 2) . ")");
+                $discountCents = Money::toCents($validated['discount'] ?? 0);
+
+                if ($discountCents > $subtotalCents) {
+                    throw new \DomainException(
+                        'ส่วนลด (฿' . Money::format($discountCents) . ') เกินยอดรวม (฿' . Money::format($subtotalCents) . ')'
+                    );
                 }
-                $total = $subtotal - $discount;
 
-                // ✅ ตรวจสอบ "ขายเชื่อ"
-                $isCredit = $validated['payment_method'] === 'credit';
-
-                if ($isCredit) {
-                    $received = 0;
-                    $change   = 0;
-                } else {
-                    $received = $validated['received_amount'] ?? 0;
-                    $change   = $received - $total;
-
-                    if ($change < 0) {
-                        throw new \DomainException("เงินที่รับมาไม่เพียงพอ (ต้องชำระอีก " . number_format(abs($change), 2) . " บาท)");
+                // ✅ ข้อ 2: จำกัดเพดานส่วนลดของ non-admin
+                $user = auth()->user();
+                if (! $user->hasRole('admin')) {
+                    $maxPercent = (float) config('pos.max_discount_percent', 0);
+                    if ($maxPercent > 0 && $subtotalCents > 0) {
+                        $discountPercent = ($discountCents / $subtotalCents) * 100;
+                        if ($discountPercent > $maxPercent + 1e-9) {
+                            throw new \DomainException(
+                                'ส่วนลดสูงสุดที่อนุญาตคือ ' . rtrim(rtrim(number_format($maxPercent, 2, '.', ''), '0'), '.') . '%'
+                                . ' (ปัจจุบัน ' . round($discountPercent, 2) . '%)'
+                            );
+                        }
                     }
                 }
 
+                $totalCents = $subtotalCents - $discountCents;
+                $isCredit   = $validated['payment_method'] === 'credit';
+
+                if ($isCredit) {
+                    $receivedCents = 0;
+                    $changeCents   = 0;
+                } else {
+                    $receivedCents = Money::toCents($validated['received_amount'] ?? 0);
+                    $changeCents   = $receivedCents - $totalCents;
+
+                    if ($changeCents < 0) {
+                        throw new \DomainException(
+                            'เงินที่รับมาไม่เพียงพอ (ต้องชำระอีก ' . Money::format(abs($changeCents)) . ' บาท)'
+                        );
+                    }
+                }
+
+                // ✅ ข้อ 8: ผูกบิลกับกะที่เปิดอยู่ของผู้ใช้
+                $currentShift = CashierShift::currentFor(auth()->user());
+
                 $sale = Sale::create([
-                    'invoice_no'      => 'TMP-' . Str::uuid(),
-                    'customer_id'     => $validated['customer_id'] ?? null,
-                    'user_id'         => auth()->id(),
-                    'subtotal'        => $subtotal,
-                    'discount'        => $discount,
-                    'total'           => $total,
-                    'payment_method'  => $validated['payment_method'],
-                    'payment_status'  => $isCredit ? 'unpaid' : 'paid',
-                    'paid_amount'     => $isCredit ? 0 : $total,
-                    'received_amount' => $received,
-                    'change_amount'   => $change,
-                    'status'          => 'completed',
-                    'idempotency_key' => $validated['idempotency_key'] ?? null,
+                    'invoice_no'       => 'TMP-' . Str::uuid(),
+                    'customer_id'      => $validated['customer_id'] ?? null,
+                    'user_id'          => auth()->id(),
+                    'cashier_shift_id' => $currentShift?->id,
+                    'subtotal'         => Money::fromCents($subtotalCents),
+                    'discount'         => Money::fromCents($discountCents),
+                    'total'            => Money::fromCents($totalCents),
+                    'payment_method'   => $validated['payment_method'],
+                    'payment_status'   => $isCredit ? 'unpaid' : 'paid',
+                    'paid_amount'      => $isCredit ? '0.00' : Money::fromCents($totalCents),
+                    'due_date'         => $isCredit ? now()->addDays((int) config('pos.credit_days'))->toDateString() : null,
+                    'received_amount'  => Money::fromCents($receivedCents),
+                    'change_amount'    => Money::fromCents($changeCents),
+                    'status'           => 'completed',
+                    'idempotency_key'  => $validated['idempotency_key'] ?? null,
                 ]);
-                // ✅ อัปเดตเลข INV จริงจาก ID
+
+                // อัปเดตเลข INV จริงจาก ID
                 $sale->update([
                     'invoice_no' => 'INV-' . date('Ymd') . '-' . str_pad($sale->id, 6, '0', STR_PAD_LEFT),
                 ]);
@@ -158,12 +192,13 @@ class SaleController extends Controller
                 foreach ($saleItemsData as $data) {
                     $data['product']->decrement('stock', $data['quantity']);
                     $newStock = $data['product']->fresh()->stock;
+
                     $sale->items()->create([
                         'product_id'   => $data['product']->id,
                         'quantity'     => $data['quantity'],
-                        'price'        => $data['price'],
+                        'price'        => Money::fromCents($data['price_cents']),
                         'cost_at_sale' => $data['cost_at_sale'],
-                        'total'        => $data['total'],
+                        'total'        => Money::fromCents($data['total_cents']),
                         'stock_after'  => $newStock,
                     ]);
                 }
@@ -176,6 +211,20 @@ class SaleController extends Controller
             });
         } catch (\DomainException $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        } catch (UniqueConstraintViolationException $e) {
+            // ชน idempotency_key → คืนบิลเดิม
+            if (! empty($validated['idempotency_key'])) {
+                $existing = Sale::where('idempotency_key', $validated['idempotency_key'])->first();
+                if ($existing) {
+                    return response()->json([
+                        'success'      => true,
+                        'sale_id'      => $existing->id,
+                        'redirect_url' => route('sales.show', $existing->id),
+                    ]);
+                }
+            }
+            report($e);
+            return response()->json(['success' => false, 'message' => 'เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง'], 500);
         } catch (\Throwable $e) {
             report($e);
             return response()->json(['success' => false, 'message' => 'เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง'], 500);
@@ -200,6 +249,17 @@ class SaleController extends Controller
 
                 if ($locked->status === 'voided') {
                     throw new \DomainException('ใบเสร็จนี้ถูกยกเลิกแล้ว');
+                }
+
+                // ✅ ข้อ 8: ห้าม void บิลในกะที่ปิดแล้ว
+                if ($locked->cashier_shift_id) {
+                    $shift = CashierShift::find($locked->cashier_shift_id);
+                    if ($shift && $shift->isClosed()) {
+                        throw new \DomainException(
+                            'ไม่สามารถยกเลิกบิลในกะที่ปิดแล้วได้ (กะ#' . $shift->id . ' ปิดเมื่อ '
+                            . optional($shift->closed_at)->format('d/m/Y H:i') . ')'
+                        );
+                    }
                 }
 
                 $activeReceipt = $locked->receipts()->where('status', 'active')->first();

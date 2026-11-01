@@ -5,15 +5,20 @@ use App\Models\Customer;
 use App\Models\Product;
 use App\Models\Quotation;
 use App\Models\Sale;
+use App\Support\Money;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
+
 class QuotationController extends Controller
 {
     // 1. หน้ารายการใบเสนอราคา
     public function index()
     {
+        $this->markExpired();
+
         $quotations = Quotation::with(['customer', 'user'])
             ->latest()
             ->paginate(15);
@@ -34,26 +39,42 @@ class QuotationController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'customer_id'        => 'nullable|exists:customers,id',
+            'customer_id'        => ['nullable', Rule::exists('customers', 'id')->where('is_active', true)],
             'quote_date'         => 'required|date',
-            'valid_until'        => 'required|date|after_or_equal:quote_date',
-            'discount'           => 'nullable|numeric|min:0',
+            'valid_until'        => 'required|date|after_or_equal:quote_date|after_or_equal:today',
+            'discount'           => 'nullable|numeric|min:0|max:99999999.99|decimal:0,2',
             'note'               => 'nullable|string',
             'items'              => 'required|array|min:1',
             'items.*.product_id' => 'required|exists:products,id|distinct',
             'items.*.quantity'   => 'required|integer|min:1',
-            'items.*.price'      => 'required|numeric|min:0',
+            'items.*.price'      => 'required|numeric|min:0|max:99999999.99|decimal:0,2',
         ]);
 
         try {
             return DB::transaction(function () use ($validated) {
-                // คำนวณยอดรวม
-                $subtotal = collect($validated['items'])->sum(fn($i) => $i['quantity'] * $i['price']);
-                $discount = $validated['discount'] ?? 0;
-                if ($discount > $subtotal) {
+                // คำนวณยอดรวม (เป็นสตางค์ทั้งหมด กัน float ผิดพลาด)
+                $subtotalCents = collect($validated['items'])
+                    ->sum(fn ($i) => Money::toCents($i['price']) * (int) $i['quantity']);
+                $discountCents = Money::toCents($validated['discount'] ?? 0);
+                if ($discountCents > $subtotalCents) {
                     throw new \DomainException("ส่วนลดเกินยอดรวม");
                 }
-                $total = $subtotal - $discount;
+                $totalCents = $subtotalCents - $discountCents;
+
+                // ผู้ใช้ที่ไม่ใช่ admin: ห้ามตั้งราคาต่ำกว่าต้นทุน และจำกัดส่วนลดตามเพดานที่กำหนด
+                if (! auth()->user()->hasRole('admin')) {
+                    $costs = Product::whereIn('id', collect($validated['items'])->pluck('product_id'))
+                        ->pluck('cost', 'id');
+                    foreach ($validated['items'] as $i) {
+                        if (Money::toCents($i['price']) < Money::toCents($costs[$i['product_id']] ?? 0)) {
+                            throw new \DomainException('ไม่สามารถตั้งราคาขายต่ำกว่าต้นทุนได้ (ต้องให้ผู้ดูแลระบบเป็นผู้ดำเนินการ)');
+                        }
+                    }
+                    $maxDiscountCents = $subtotalCents * (float) config('pos.max_discount_percent') / 100;
+                    if ($discountCents > $maxDiscountCents + 1e-6) {
+                        throw new \DomainException('ส่วนลดเกินเพดาน ' . config('pos.max_discount_percent') . '% ของยอดรวม (ต้องให้ผู้ดูแลระบบอนุมัติ)');
+                    }
+                }
 
                 // สร้างเลขที่ใบเสนอราคา
                 $quoteNo = 'TMP-' . Str::uuid();   // เลขจริงอัปเดตจาก id ด้านล่าง (กันเลขชนกัน)
@@ -61,13 +82,13 @@ class QuotationController extends Controller
                 // บันทึกหัวเอกสาร
                 $quotation = Quotation::create([
                     'quote_no'    => $quoteNo,
-                    'customer_id' => $validated['customer_id'],
+                    'customer_id' => $validated['customer_id'] ?? null,
                     'user_id'     => auth()->id(),
                     'quote_date'  => $validated['quote_date'],
                     'valid_until' => $validated['valid_until'],
-                    'subtotal'    => $subtotal,
-                    'discount'    => $discount,
-                    'total'       => $total,
+                    'subtotal'    => Money::fromCents($subtotalCents),
+                    'discount'    => Money::fromCents($discountCents),
+                    'total'       => Money::fromCents($totalCents),
                     'status'      => 'draft',
                     'note'        => $validated['note'] ?? null,
                 ]);
@@ -80,8 +101,8 @@ class QuotationController extends Controller
                     $quotation->items()->create([
                         'product_id' => $item['product_id'],
                         'quantity'   => $item['quantity'],
-                        'price'      => $item['price'],
-                        'total'      => $item['quantity'] * $item['price'],
+                        'price'      => Money::fromCents(Money::toCents($item['price'])),
+                        'total'      => Money::fromCents(Money::toCents($item['price']) * (int) $item['quantity']),
                     ]);
                 }
 
@@ -99,6 +120,8 @@ class QuotationController extends Controller
     // 4. หน้ารายละเอียด
     public function show(Quotation $quotation)
     {
+        $this->markExpired();
+        $quotation->refresh();
         $quotation->load(['items.product', 'customer', 'user']);
         return view('quotations.show', compact('quotation'));
     }
@@ -148,21 +171,30 @@ class QuotationController extends Controller
                     throw new \DomainException('ใบเสนอราคานี้แปลงเป็นใบเสร็จไม่ได้ (สถานะ: ' . $quotation->status . ')');
                 }
 
+                // ใบเสนอราคาหมดอายุ: บันทึกสถานะ expired (commit) แล้วแจ้งผู้ใช้ ไม่ throw เพื่อไม่ให้ rollback
+                if ($quotation->valid_until && $quotation->valid_until->copy()->endOfDay()->isPast()) {
+                    $quotation->update(['status' => 'expired']);
+                    return back()->with('error', 'ใบเสนอราคานี้หมดอายุแล้ว (ใช้ได้ถึง ' . $quotation->valid_until->format('d/m/Y') . ') กรุณาออกใบเสนอราคาใหม่');
+                }
+
                 $isCredit = $validated['payment_method'] === 'credit';
                 if ($isCredit && empty($quotation->customer_id)) {
                     throw new \DomainException('ไม่สามารถขายเชื่อให้ลูกค้าทั่วไปได้ กรุณาระบุลูกค้าในใบเสนอราคา');
                 }
+                if ($isCredit && ! Customer::where('id', $quotation->customer_id)->where('is_active', true)->exists()) {
+                    throw new \DomainException('ลูกค้ารายนี้ถูกปิดใช้งานแล้ว ไม่สามารถขายเชื่อได้');
+                }
 
-                $total = (float) $quotation->total;
+                $totalCents = Money::toCents($quotation->total);
                 if ($isCredit) {
-                    $received = 0;
-                    $change   = 0;
+                    $receivedCents = 0;
+                    $changeCents   = 0;
                 } else {
-                    $received = $validated['received_amount'] ?? $total;
-                    if ((int) round($received * 100) < (int) round($total * 100)) {
-                        throw new \DomainException('เงินที่รับมาไม่เพียงพอ (ต้องชำระอีก ' . number_format($total - $received, 2) . ' บาท)');
+                    $receivedCents = Money::toCents($validated['received_amount'] ?? Money::fromCents($totalCents));
+                    if ($receivedCents < $totalCents) {
+                        throw new \DomainException('เงินที่รับมาไม่เพียงพอ (ต้องชำระอีก ' . Money::format($totalCents - $receivedCents) . ' บาท)');
                     }
-                    $change = round($received - $total, 2);
+                    $changeCents = $receivedCents - $totalCents;
                 }
 
                 // ล็อกสินค้าเรียงตาม id (กัน deadlock) แล้วตรวจสต็อก
@@ -170,6 +202,9 @@ class QuotationController extends Controller
                 $products = [];
                 foreach ($items as $item) {
                     $product = Product::lockForUpdate()->findOrFail($item->product_id);
+                    if (! $product->is_active) {
+                        throw new \DomainException("สินค้า '{$product->name}' ถูกปิดการขายแล้ว ไม่สามารถแปลงใบเสนอราคานี้ได้");
+                    }
                     if ($product->stock < $item->quantity) {
                         throw new \DomainException("สินค้า '{$product->name}' มีสต็อกไม่พอ (เหลือ {$product->stock})");
                     }
@@ -177,18 +212,23 @@ class QuotationController extends Controller
                 }
 
                 // เลขชั่วคราว (ไม่ชน) แล้วอัปเดตจาก id จริง — เหมือน Receipt
+                // ผูกบิลกับกะที่เปิดอยู่ (เหมือน POS) เพื่อให้ยอดปิดกะและกฎห้าม void หลังปิดกะใช้ได้กับบิลนี้ด้วย
+                $currentShift = \App\Models\CashierShift::currentFor(auth()->user());
+
                 $sale = Sale::create([
-                    'invoice_no'      => 'TMP-' . Str::uuid(),
-                    'customer_id'     => $quotation->customer_id,
-                    'user_id'         => auth()->id(),
+                    'invoice_no'       => 'TMP-' . Str::uuid(),
+                    'customer_id'      => $quotation->customer_id,
+                    'user_id'          => auth()->id(),
+                    'cashier_shift_id' => $currentShift?->id,
                     'subtotal'        => $quotation->subtotal,
                     'discount'        => $quotation->discount,
                     'total'           => $quotation->total,
                     'payment_method'  => $validated['payment_method'],
                     'payment_status'  => $isCredit ? 'unpaid' : 'paid',
                     'paid_amount'     => $isCredit ? 0 : $quotation->total,
-                    'received_amount' => $received,
-                    'change_amount'   => $change,
+                    'due_date'        => $isCredit ? now()->addDays((int) config('pos.credit_days'))->toDateString() : null,
+                    'received_amount' => Money::fromCents($receivedCents),
+                    'change_amount'   => Money::fromCents($changeCents),
                     'status'          => 'completed',
                     'idempotency_key' => $validated['idempotency_key'] ?? null,
                 ]);
@@ -239,5 +279,15 @@ class QuotationController extends Controller
         $pdf->setPaper('a4', 'portrait');
 
         return $pdf->download('quotation_' . $quotation->quote_no . '.pdf');
+    }
+
+    /**
+     * ปรับสถานะใบเสนอราคาที่เลยวันใช้งานแล้ว (draft/sent) เป็น expired
+     */
+    private function markExpired(): void
+    {
+        Quotation::whereIn('status', ['draft', 'sent'])
+            ->whereDate('valid_until', '<', now()->toDateString())
+            ->update(['status' => 'expired']);
     }
 }

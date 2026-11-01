@@ -2,6 +2,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Product;
+use App\Models\PurchaseOrder;
 use App\Models\StockDocument;
 use App\Models\Supplier;
 use Illuminate\Http\Request;
@@ -145,8 +146,35 @@ class StockDocumentController extends Controller
                     throw new \DomainException('เอกสารนี้ถูกยกเลิกไปแล้ว');
                 }
 
+                // ใบรับเข้าที่มาจากการรับของ PO: หา PO ก่อน เพื่อกันยกเลิกถ้าจ่ายเงินให้ Supplier ไปแล้ว
+                $po = null;
+                if ($doc->type === 'in') {
+                    $po = $doc->purchase_order_id
+                        ? PurchaseOrder::lockForUpdate()->find($doc->purchase_order_id)
+                        : null;
+
+                    // (เอกสารเก่าก่อนมีคอลัมน์ purchase_order_id จะจับคู่จากเลขที่เอกสาร IN-PO-<po_no>)
+                    if (! $po && str_starts_with($doc->doc_no, 'IN-PO-')) {
+                        $poNo = preg_replace('/-R\d+$/', '', substr($doc->doc_no, strlen('IN-PO-')));
+                        $po   = PurchaseOrder::lockForUpdate()->where('po_no', $poNo)->first();
+                    }
+
+                    if ($po && $po->status === 'received' && (float) $po->paid_amount > 0) {
+                        throw new \DomainException(
+                            'ไม่สามารถยกเลิกใบรับเข้านี้ได้ เพราะ PO ' . $po->po_no . ' มีการจ่ายเงินให้ซัพพลายเออร์แล้ว ฿'
+                            . number_format((float) $po->paid_amount, 2) . ' (ต้องแก้ยอดจ่ายก่อน)'
+                        );
+                    }
+                }
+
                 foreach ($doc->items()->orderBy('product_id')->get() as $item) {
                     $product = Product::lockForUpdate()->findOrFail($item->product_id);
+
+                    // ใบรับเข้ามาจาก PO: คืนต้นทุนเดิม ถ้าต้นทุนปัจจุบันยังเป็นค่าที่ใบนี้ตั้งไว้ (ไม่มีใครเปลี่ยนต่อ)
+                    if ($po && $item->cost_before !== null && $item->cost_after !== null
+                        && (int) round((float) $product->cost * 100) === (int) round((float) $item->cost_after * 100)) {
+                        $product->cost = $item->cost_before;
+                    }
 
                     // ใบรับเข้า (in) -> ตัดสต็อกคืน / ใบเบิกออก (out) -> บวกสต็อกคืน
                     $newStock = $doc->type === 'in'
@@ -157,10 +185,16 @@ class StockDocumentController extends Controller
                         throw new \DomainException("ไม่สามารถยกเลิกได้ สินค้า '{$product->name}' ถูกใช้ไปแล้ว (สต็อกจะติดลบ)");
                     }
 
-                    $product->update(['stock' => $newStock]);
+                    $product->stock = $newStock;
+                    $product->save();
                 }
 
                 $doc->update(['status' => 'voided']);
+
+                // ใบรับเข้าที่สร้างจากการรับของ PO: ย้อนสถานะ PO กลับเป็น pending เพื่อให้รับของใหม่ได้
+                if ($po && $po->status === 'received') {
+                    $po->update(['status' => 'pending', 'received_at' => null]);
+                }
 
                 return redirect()->route('stock-documents.index')
                     ->with('success', 'ยกเลิกเอกสาร ' . $doc->doc_no . ' สำเร็จ และคืนสต็อกเรียบร้อย');

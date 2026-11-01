@@ -80,7 +80,7 @@
             <div class="flex gap-3">
                 <span class="mt-1.5 h-2.5 w-2.5 rounded-full bg-teal-400 shrink-0"></span>
                 <div>
-                    <p class="text-sm text-slate-300">ยังไม่ครบกำหนด (0-30 วัน)</p>
+                    <p class="text-sm text-slate-300">ยังไม่ครบกำหนด / เกินกำหนด 0-30 วัน</p>
                     <p class="ar-num text-xl font-semibold">฿{{ number_format($totals['current'], 2) }}</p>
                     <p class="text-xs text-slate-500 ar-num">{{ $pCurrent }}% ของยอดค้าง</p>
                 </div>
@@ -88,7 +88,7 @@
             <div class="flex gap-3">
                 <span class="mt-1.5 h-2.5 w-2.5 rounded-full bg-amber-400 shrink-0"></span>
                 <div>
-                    <p class="text-sm text-slate-300">ค้าง 31-60 วัน</p>
+                    <p class="text-sm text-slate-300">เกินกำหนด 31-60 วัน</p>
                     <p class="ar-num text-xl font-semibold">฿{{ number_format($totals['days_31_60'], 2) }}</p>
                     <p class="text-xs text-slate-500 ar-num">{{ $p3160 }}% ของยอดค้าง</p>
                 </div>
@@ -96,7 +96,7 @@
             <div class="flex gap-3">
                 <span class="mt-1.5 h-2.5 w-2.5 rounded-full bg-rose-500 shrink-0"></span>
                 <div>
-                    <p class="text-sm text-slate-300">ค้างเกิน 60 วัน</p>
+                    <p class="text-sm text-slate-300">เกินกำหนดเกิน 60 วัน</p>
                     <p class="ar-num text-xl font-semibold text-rose-300">฿{{ number_format($totals['days_60_plus'], 2) }}</p>
                     <p class="text-xs text-slate-500 ar-num">{{ $p60 }}% ของยอดค้าง</p>
                 </div>
@@ -158,18 +158,18 @@
                         <thead class="bg-slate-50 text-slate-500">
                             <tr>
                                 <th class="px-5 py-2.5 text-left font-medium">เลขที่บิล</th>
-                                <th class="px-5 py-2.5 text-left font-medium">วันที่ขาย</th>
+                                <th class="px-5 py-2.5 text-left font-medium">วันที่ขาย / ครบกำหนด</th>
                                 <th class="px-5 py-2.5 text-right font-medium">ยอดรวม</th>
                                 <th class="px-5 py-2.5 text-right font-medium">ชำระแล้ว</th>
                                 <th class="px-5 py-2.5 text-right font-medium">ค้างชำระ</th>
-                                <th class="px-5 py-2.5 text-center font-medium">อายุหนี้</th>
+                                <th class="px-5 py-2.5 text-center font-medium">เกินกำหนด (วัน)</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-slate-100">
                             @foreach($customer['invoices'] as $row)
                                 <tr class="hover:bg-slate-50/70">
                                     <td class="px-5 py-3 font-medium text-slate-900">{{ $row['invoice_no'] }}</td>
-                                    <td class="px-5 py-3 text-slate-600 ar-num">{{ $row['date'] }}</td>
+                                    <td class="px-5 py-3 text-slate-600 ar-num">{{ $row['date'] }} <span class="text-slate-400">/</span> {{ $row['due_date'] }}</td>
                                     <td class="px-5 py-3 text-right text-slate-600 ar-num">฿{{ number_format($row['total'], 2) }}</td>
                                     <td class="px-5 py-3 text-right text-teal-700 ar-num">฿{{ number_format($row['paid'], 2) }}</td>
                                     <td class="px-5 py-3 text-right font-semibold text-slate-900 ar-num">฿{{ number_format($row['due'], 2) }}</td>
