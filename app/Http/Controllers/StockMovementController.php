@@ -23,7 +23,6 @@ class StockMovementController extends Controller
         // 1. ใบรับ/ใบเบิก
         $docs = DB::table('stock_document_items as i')
             ->join('stock_documents as d', 'd.id', '=', 'i.stock_document_id')
-            ->where('d.status', 'completed')
             ->whereBetween('d.date', [$startDate, $endDate])
             ->select([
                 'd.date as date',
@@ -40,7 +39,6 @@ class StockMovementController extends Controller
         // 2. ขายหน้าร้าน (POS)
         $sales = DB::table('sale_items as i')
             ->join('sales as s', 's.id', '=', 'i.sale_id')
-            ->where('s.status', 'completed')
             ->whereBetween('s.created_at', [$startDate . ' 00:00:00', $endDate . ' 23:59:59'])
             ->select([
                 DB::raw("DATE(s.created_at) as date"),
@@ -69,8 +67,43 @@ class StockMovementController extends Controller
                 'a.reason as note',
             ]);
 
+        // 3b. รายการย้อนกลับ: บิลขายที่ถูก void (คืนสต็อก)
+        $saleVoids = DB::table('sale_items as i')
+            ->join('sales as s', 's.id', '=', 'i.sale_id')
+            ->where('s.status', 'voided')
+            ->whereNotNull('s.voided_at')
+            ->whereBetween('s.voided_at', [$startDate . ' 00:00:00', $endDate . ' 23:59:59'])
+            ->select([
+                DB::raw("DATE(s.voided_at) as date"),
+                's.voided_at as created_at',
+                DB::raw("'in' as type"),
+                DB::raw("'ยกเลิกบิลขาย (คืนสต็อก)' as source"),
+                's.invoice_no as reference',
+                'i.product_id',
+                DB::raw('i.quantity as quantity'),
+                DB::raw('NULL as stock_after'),
+                's.void_reason as note',
+            ]);
+
+        // 3c. รายการย้อนกลับ: ใบรับ/ใบเบิกที่ถูก void (ใช้ updated_at เป็นเวลายกเลิก)
+        $docVoids = DB::table('stock_document_items as i')
+            ->join('stock_documents as d', 'd.id', '=', 'i.stock_document_id')
+            ->where('d.status', 'voided')
+            ->whereBetween('d.updated_at', [$startDate . ' 00:00:00', $endDate . ' 23:59:59'])
+            ->select([
+                DB::raw("DATE(d.updated_at) as date"),
+                'd.updated_at as created_at',
+                DB::raw("CASE WHEN d.type='in' THEN 'out' ELSE 'in' END as type"),
+                DB::raw("'ยกเลิกใบรับ/ใบเบิก (ย้อนสต็อก)' as source"),
+                'd.doc_no as reference',
+                'i.product_id',
+                DB::raw("CASE WHEN d.type='in' THEN -i.quantity ELSE i.quantity END as quantity"),
+                DB::raw('NULL as stock_after'),
+                'd.note',
+            ]);
+
         // 4. UNION ALL
-        $union = $docs->unionAll($sales)->unionAll($adjusts);
+        $union = $docs->unionAll($sales)->unionAll($adjusts)->unionAll($saleVoids)->unionAll($docVoids);
 
         // 5. Query จาก UNION
         $query = DB::query()->fromSub($union, 'm')

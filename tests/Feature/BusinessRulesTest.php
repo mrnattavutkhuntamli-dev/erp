@@ -1,5 +1,4 @@
 <?php
-
 namespace Tests\Feature;
 
 use App\Models\CarBrand;
@@ -68,18 +67,18 @@ class BusinessRulesTest extends TestCase
     private function product(array $o = []): Product
     {
         return Product::create(array_merge([
-            'sku' => 'T-' . uniqid(), 'name' => 'Brake Pad', 'cost' => 100, 'price' => 200,
-            'stock' => 10, 'is_active' => true,
+            'sku'   => 'T-' . uniqid(), 'name' => 'Brake Pad', 'cost' => 100, 'price' => 200,
+            'stock' => 10, 'is_active'         => true,
         ], $o));
     }
 
     private function quotation(Product $p, array $o = [], float $price = 200): Quotation
     {
         $q = Quotation::create(array_merge([
-            'quote_no' => 'QT-' . uniqid(), 'user_id' => $this->admin->id,
-            'quote_date' => now()->toDateString(),
+            'quote_no'    => 'QT-' . uniqid(), 'user_id' => $this->admin->id,
+            'quote_date'  => now()->toDateString(),
             'valid_until' => now()->addDays(10)->toDateString(),
-            'subtotal' => $price, 'discount' => 0, 'total' => $price, 'status' => 'sent',
+            'subtotal'    => $price, 'discount'          => 0, 'total' => $price, 'status' => 'sent',
         ], $o));
         $q->items()->create(['product_id' => $p->id, 'quantity' => 1, 'price' => $price, 'total' => $price]);
         return $q;
@@ -89,9 +88,21 @@ class BusinessRulesTest extends TestCase
     {
         $s = Supplier::first() ?? Supplier::create(['name' => 'Sup', 'is_active' => true]);
         return PurchaseOrder::create([
-            'po_no' => 'PO-' . uniqid(), 'supplier_id' => $s->id, 'user_id' => $this->admin->id,
+            'po_no'      => 'PO-' . uniqid(), 'supplier_id'               => $s->id, 'user_id'          => $this->admin->id,
             'order_date' => $orderDate ?? now()->toDateString(), 'status' => 'received', 'total_amount' => $total,
         ]);
+    }
+
+    // ---------- รับคืนสินค้า ----------
+
+    private function makeSale(Product $p, int $qty, array $extra = []): Sale
+    {
+        $this->postJson(route('sales.store'), array_merge([
+            'items'          => [['product_id' => $p->id, 'quantity' => $qty]],
+            'payment_method' => 'cash', 'received_amount' => 100000,
+        ], $extra))->assertOk();
+
+        return Sale::latest('id')->first();
     }
 
     // ---------- #1 สต็อก ----------
@@ -148,7 +159,7 @@ class BusinessRulesTest extends TestCase
     public function test_expired_quotation_cannot_be_converted_and_is_marked_expired(): void
     {
         $q = $this->quotation($this->product(), [
-            'quote_date' => now()->subDays(60)->toDateString(),
+            'quote_date'  => now()->subDays(60)->toDateString(),
             'valid_until' => now()->subDays(30)->toDateString(),
         ]);
         $this->post(route('quotations.convert', $q), ['payment_method' => 'cash', 'received_amount' => 200])
@@ -188,10 +199,10 @@ class BusinessRulesTest extends TestCase
     {
         $cashier = $this->makeUser('cashier');
         $this->actingAs($cashier);
-        $p = $this->product(['cost' => 100]);
+        $p    = $this->product(['cost' => 100]);
         $base = [
             'quote_date' => now()->toDateString(), 'valid_until' => now()->addDays(5)->toDateString(),
-            'items' => [['product_id' => $p->id, 'quantity' => 1, 'price' => 150]],
+            'items'      => [['product_id' => $p->id, 'quantity' => 1, 'price' => 150]],
         ];
 
         // ราคาต่ำกว่าทุน
@@ -211,7 +222,7 @@ class BusinessRulesTest extends TestCase
         $p = $this->product(['cost' => 100]);
         $this->post(route('quotations.store'), [
             'quote_date' => now()->toDateString(), 'valid_until' => now()->addDays(5)->toDateString(),
-            'items' => [['product_id' => $p->id, 'quantity' => 1, 'price' => 50]],
+            'items'      => [['product_id' => $p->id, 'quantity' => 1, 'price' => 50]],
         ]);
         $this->assertSame(1, Quotation::count());
     }
@@ -221,7 +232,7 @@ class BusinessRulesTest extends TestCase
         $p = $this->product();
         $this->post(route('quotations.store'), [
             'quote_date' => now()->toDateString(), 'valid_until' => now()->addDays(5)->toDateString(),
-            'items' => [['product_id' => $p->id, 'quantity' => 1, 'price' => 200]],
+            'items'      => [['product_id' => $p->id, 'quantity' => 1, 'price' => 200]],
         ])->assertSessionHasNoErrors();
         $this->assertSame(1, Quotation::count());
         $this->assertNull(Quotation::first()->customer_id);
@@ -232,13 +243,13 @@ class BusinessRulesTest extends TestCase
     public function test_shift_close_deducts_only_cash_drawer_expenses(): void
     {
         $shift = CashierShift::create([
-            'user_id' => $this->admin->id, 'opened_at' => now()->subHour(),
-            'opening_cash' => 1000, 'status' => 'open',
+            'user_id'      => $this->admin->id, 'opened_at' => now()->subHour(),
+            'opening_cash' => 1000, 'status'                => 'open',
         ]);
         Expense::create(['expense_date' => now()->toDateString(), 'category' => 'supplies',
-            'description' => 'จากลิ้นชัก', 'amount' => 500, 'from_cash_drawer' => true, 'user_id' => $this->admin->id]);
+            'description'                   => 'จากลิ้นชัก', 'amount'            => 500, 'from_cash_drawer' => true, 'user_id' => $this->admin->id]);
         Expense::create(['expense_date' => now()->toDateString(), 'category' => 'rent',
-            'description' => 'โอนธนาคาร', 'amount' => 9000, 'from_cash_drawer' => false, 'user_id' => $this->admin->id]);
+            'description'                   => 'โอนธนาคาร', 'amount'             => 9000, 'from_cash_drawer' => false, 'user_id' => $this->admin->id]);
 
         $this->post(route('cashier-shifts.close', $shift), ['closing_cash' => 500]);
 
@@ -251,10 +262,10 @@ class BusinessRulesTest extends TestCase
 
     public function test_expense_form_saves_cash_drawer_flag(): void
     {
-        $this->openShiftFor($this->admin);   // จ่ายจากลิ้นชักต้องมีกะที่เปิดอยู่ให้หัก
+        $this->openShiftFor($this->admin); // จ่ายจากลิ้นชักต้องมีกะที่เปิดอยู่ให้หัก
         $this->post(route('expenses.store'), [
             'expense_date' => now()->toDateString(), 'category' => 'other',
-            'description' => 'x', 'amount' => 100, 'from_cash_drawer' => '1',
+            'description'  => 'x', 'amount'                     => 100, 'from_cash_drawer' => '1',
         ]);
         $this->assertTrue((bool) Expense::first()->from_cash_drawer);
 
@@ -268,17 +279,21 @@ class BusinessRulesTest extends TestCase
 
     public function test_ap_aging_counts_only_received_unpaid_pos_by_remaining_amount(): void
     {
-        $pending = $this->receivedPo(500);   $pending->update(['status' => 'pending']);
-        $cancel  = $this->receivedPo(500);   $cancel->update(['status' => 'cancelled']);
-        $paid    = $this->receivedPo(700);   $paid->update(['paid_amount' => 700]);
-        $partial = $this->receivedPo(1000);  $partial->update(['paid_amount' => 400]);
-        $open    = $this->receivedPo(250);
+        $pending = $this->receivedPo(500);
+        $pending->update(['status' => 'pending']);
+        $cancel = $this->receivedPo(500);
+        $cancel->update(['status' => 'cancelled']);
+        $paid = $this->receivedPo(700);
+        $paid->update(['paid_amount' => 700]);
+        $partial = $this->receivedPo(1000);
+        $partial->update(['paid_amount' => 400]);
+        $open = $this->receivedPo(250);
 
-        $r = $this->get(route('reports.ap-aging'))->assertOk();
+        $r      = $this->get(route('reports.ap-aging'))->assertOk();
         $totals = $r->viewData('totals');
         $this->assertEquals(600 + 250, $totals['total']);
         $r->assertSee($partial->po_no)->assertSee($open->po_no)
-          ->assertDontSee($pending->po_no)->assertDontSee($cancel->po_no)->assertDontSee($paid->po_no);
+            ->assertDontSee($pending->po_no)->assertDontSee($cancel->po_no)->assertDontSee($paid->po_no);
     }
 
     public function test_paying_a_po_reduces_payables_and_rejects_overpayment(): void
@@ -326,7 +341,7 @@ class BusinessRulesTest extends TestCase
         $c = Customer::create(['name' => 'Cust', 'is_active' => true]);
         $p = $this->product();
         $this->postJson(route('sales.store'), [
-            'customer_id' => $c->id, 'items' => [['product_id' => $p->id, 'quantity' => 1]],
+            'customer_id'    => $c->id, 'items' => [['product_id' => $p->id, 'quantity' => 1]],
             'payment_method' => 'credit',
         ])->assertOk();
 
@@ -348,7 +363,7 @@ class BusinessRulesTest extends TestCase
     {
         $p = $this->product();
         $this->postJson(route('sales.store'), [
-            'items' => [['product_id' => $p->id, 'quantity' => 1]],
+            'items'          => [['product_id' => $p->id, 'quantity' => 1]],
             'payment_method' => 'cash', 'received_amount' => 500,
         ])->assertOk();
         $this->assertNull(Sale::first()->due_date);
@@ -366,10 +381,10 @@ class BusinessRulesTest extends TestCase
 
     public function test_rejected_last_admin_update_saves_nothing(): void
     {
-        $oldName = $this->admin->name;
+        $oldName  = $this->admin->name;
         $oldEmail = $this->admin->email;
         $this->put(route('users.update', $this->admin), [
-            'name' => 'HACKED', 'email' => 'new@example.com',
+            'name'     => 'HACKED', 'email'                         => 'new@example.com',
             'password' => 'newpassword123', 'password_confirmation' => 'newpassword123', 'role' => 'cashier',
         ])->assertSessionHas('error');
 
@@ -431,7 +446,7 @@ class BusinessRulesTest extends TestCase
     public function test_deactivated_users_are_not_listed_for_new_shift_schedules(): void
     {
         $active = $this->makeUser('cashier');
-        $gone = $this->makeUser('cashier');
+        $gone   = $this->makeUser('cashier');
         $gone->forceFill(['is_active' => false])->save();
 
         $r = $this->post(route('shift-schedules.store'), [
@@ -470,10 +485,10 @@ class BusinessRulesTest extends TestCase
 
     public function test_voiding_po_stock_document_reverts_po_and_allows_receiving_again(): void
     {
-        $s = Supplier::create(['name' => 'Sup', 'is_active' => true]);
-        $p = $this->product(['stock' => 0]);
+        $s  = Supplier::create(['name' => 'Sup', 'is_active' => true]);
+        $p  = $this->product(['stock' => 0]);
         $po = PurchaseOrder::create([
-            'po_no' => 'PO-X', 'supplier_id' => $s->id, 'user_id' => $this->admin->id,
+            'po_no'      => 'PO-X', 'supplier_id'           => $s->id, 'user_id'         => $this->admin->id,
             'order_date' => now()->toDateString(), 'status' => 'pending', 'total_amount' => 500,
         ]);
         $po->items()->create(['product_id' => $p->id, 'quantity' => 5, 'unit_cost' => 100, 'total' => 500]);
@@ -496,11 +511,11 @@ class BusinessRulesTest extends TestCase
 
     public function test_voiding_legacy_po_document_without_link_matches_by_doc_no(): void
     {
-        $p = $this->product(['stock' => 5]);
-        $po = $this->receivedPo(500);
+        $p   = $this->product(['stock' => 5]);
+        $po  = $this->receivedPo(500);
         $doc = StockDocument::create([
-            'doc_no' => 'IN-PO-' . $po->po_no, 'type' => 'in', 'date' => now()->toDateString(),
-            'user_id' => $this->admin->id, 'status' => 'completed',
+            'doc_no'  => 'IN-PO-' . $po->po_no, 'type' => 'in', 'date' => now()->toDateString(),
+            'user_id' => $this->admin->id, 'status'    => 'completed',
         ]);
         $doc->items()->create(['product_id' => $p->id, 'quantity' => 5, 'stock_after' => 5]);
 
@@ -512,9 +527,9 @@ class BusinessRulesTest extends TestCase
 
     public function test_idempotency_key_prevents_duplicate_sales(): void
     {
-        $p = $this->product(['stock' => 10]);
+        $p       = $this->product(['stock' => 10]);
         $payload = [
-            'items' => [['product_id' => $p->id, 'quantity' => 1]],
+            'items'          => [['product_id' => $p->id, 'quantity' => 1]],
             'payment_method' => 'cash', 'received_amount' => 500, 'idempotency_key' => (string) Str::uuid(),
         ];
         $this->postJson(route('sales.store'), $payload)->assertOk();
@@ -526,19 +541,19 @@ class BusinessRulesTest extends TestCase
     public function test_unique_violation_on_idempotency_key_returns_existing_sale(): void
     {
         // จำลอง race: มีบิลที่ใช้ key นี้อยู่แล้ว แต่การเช็กเบื้องต้นใน transaction พลาด (ชนที่ unique index จริง)
-        $p = $this->product(['stock' => 10]);
-        $key = (string) Str::uuid();
+        $p     = $this->product(['stock' => 10]);
+        $key   = (string) Str::uuid();
         $first = $this->postJson(route('sales.store'), [
-            'items' => [['product_id' => $p->id, 'quantity' => 1]],
+            'items'          => [['product_id' => $p->id, 'quantity' => 1]],
             'payment_method' => 'cash', 'received_amount' => 500, 'idempotency_key' => $key,
         ])->assertOk()->json('sale_id');
 
         Sale::where('id', $first)->update(['idempotency_key' => $key]); // key ยังอยู่ — ยืนยันว่า unique index มีจริง
         $this->expectException(\Illuminate\Database\UniqueConstraintViolationException::class);
         Sale::create([
-            'invoice_no' => 'DUP-' . uniqid(), 'user_id' => $this->admin->id, 'subtotal' => 1, 'discount' => 0,
-            'total' => 1, 'payment_method' => 'cash', 'payment_status' => 'paid', 'paid_amount' => 1,
-            'received_amount' => 1, 'change_amount' => 0, 'status' => 'completed', 'idempotency_key' => $key,
+            'invoice_no'      => 'DUP-' . uniqid(), 'user_id' => $this->admin->id, 'subtotal' => 1, 'discount'                  => 0,
+            'total'           => 1, 'payment_method'          => 'cash', 'payment_status'     => 'paid', 'paid_amount'          => 1,
+            'received_amount' => 1, 'change_amount'           => 0, 'status'                  => 'completed', 'idempotency_key' => $key,
         ]);
     }
 
@@ -548,14 +563,14 @@ class BusinessRulesTest extends TestCase
         $p = $this->product();
 
         $this->postJson(route('sales.store'), [
-            'customer_id' => $c->id, 'items' => [['product_id' => $p->id, 'quantity' => 1]],
+            'customer_id'    => $c->id, 'items' => [['product_id' => $p->id, 'quantity' => 1]],
             'payment_method' => 'credit',
         ])->assertStatus(422);
 
         $this->post(route('quotations.store'), [
             'customer_id' => $c->id, 'quote_date' => now()->toDateString(),
             'valid_until' => now()->addDays(3)->toDateString(),
-            'items' => [['product_id' => $p->id, 'quantity' => 1, 'price' => 200]],
+            'items'       => [['product_id' => $p->id, 'quantity' => 1, 'price' => 200]],
         ])->assertSessionHasErrors('customer_id');
     }
 
@@ -585,7 +600,7 @@ class BusinessRulesTest extends TestCase
 
     public function test_overnight_schedule_can_be_created_and_overlaps_are_detected(): void
     {
-        $u = $this->makeUser('cashier');
+        $u    = $this->makeUser('cashier');
         $date = now()->toDateString();
 
         $this->post(route('shift-schedules.store'), [
@@ -666,7 +681,7 @@ class BusinessRulesTest extends TestCase
     {
         $p = $this->product(['stock' => 10]);
         $this->postJson(route('sales.store'), [
-            'items' => [['product_id' => $p->id, 'quantity' => 1]],
+            'items'          => [['product_id' => $p->id, 'quantity' => 1]],
             'payment_method' => 'cash', 'received_amount' => 500,
         ])->assertOk();
         Sale::first()->forceFill(['created_at' => '2026-10-15 23:45:00'])->save();
@@ -686,7 +701,7 @@ class BusinessRulesTest extends TestCase
     {
         $p = $this->product(['stock' => 10]);
         $this->postJson(route('sales.store'), [
-            'items' => [['product_id' => $p->id, 'quantity' => 4]],
+            'items'          => [['product_id' => $p->id, 'quantity' => 4]],
             'payment_method' => 'cash', 'received_amount' => 1000,
         ])->assertOk();
         $this->assertSame(6, $p->fresh()->stock);
@@ -699,7 +714,7 @@ class BusinessRulesTest extends TestCase
     public function test_quotation_conversion_links_sale_to_open_shift(): void
     {
         $shift = $this->openShiftFor($this->admin);
-        $q = $this->quotation($this->product());
+        $q     = $this->quotation($this->product());
 
         $this->post(route('quotations.convert', $q), ['payment_method' => 'cash', 'received_amount' => 200]);
 
@@ -709,12 +724,12 @@ class BusinessRulesTest extends TestCase
     public function test_drawer_expense_by_accountant_is_deducted_from_cashiers_shift(): void
     {
         $cashier = $this->makeUser('cashier');
-        $shift = $this->openShiftFor($cashier, ['opening_cash' => 1000]);
+        $shift   = $this->openShiftFor($cashier, ['opening_cash' => 1000]);
 
         $this->actingAs($this->makeUser('accountant'));
         $this->post(route('expenses.store'), [
             'expense_date' => now()->toDateString(), 'category' => 'other',
-            'description' => 'ค่าน้ำแข็ง', 'amount' => 100, 'from_cash_drawer' => '1',
+            'description'  => 'ค่าน้ำแข็ง', 'amount'            => 100, 'from_cash_drawer' => '1',
         ]);
         $this->assertSame($shift->id, Expense::first()->cashier_shift_id);
 
@@ -727,7 +742,7 @@ class BusinessRulesTest extends TestCase
     {
         $this->post(route('expenses.store'), [
             'expense_date' => now()->toDateString(), 'category' => 'other',
-            'description' => 'x', 'amount' => 100, 'from_cash_drawer' => '1',
+            'description'  => 'x', 'amount'                     => 100, 'from_cash_drawer' => '1',
         ])->assertSessionHas('error');
         $this->assertSame(0, Expense::count());
     }
@@ -737,8 +752,8 @@ class BusinessRulesTest extends TestCase
         $shift = $this->openShiftFor($this->admin, ['opened_at' => now()->subHours(3)]);
         $shift->update(['status' => 'closed', 'closed_at' => now()->subHour()]);
         $e = Expense::create([
-            'expense_date' => now()->toDateString(), 'category' => 'other', 'description' => 'x', 'amount' => 50,
-            'from_cash_drawer' => true, 'user_id' => $this->admin->id, 'cashier_shift_id' => $shift->id,
+            'expense_date'     => now()->toDateString(), 'category' => 'other', 'description'               => 'x', 'amount' => 50,
+            'from_cash_drawer' => true, 'user_id'                   => $this->admin->id, 'cashier_shift_id' => $shift->id,
         ]);
 
         $this->delete(route('expenses.destroy', $e))->assertSessionHas('error');
@@ -748,14 +763,14 @@ class BusinessRulesTest extends TestCase
     public function test_cannot_void_cash_receipt_of_closed_shift(): void
     {
         $sale = Sale::create([
-            'invoice_no' => 'INV-' . uniqid(), 'user_id' => $this->admin->id, 'subtotal' => 500, 'discount' => 0,
-            'total' => 500, 'payment_method' => 'credit', 'payment_status' => 'partial', 'paid_amount' => 200,
-            'status' => 'completed',
+            'invoice_no' => 'INV-' . uniqid(), 'user_id' => $this->admin->id, 'subtotal' => 500, 'discount'          => 0,
+            'total'      => 500, 'payment_method'        => 'credit', 'payment_status'   => 'partial', 'paid_amount' => 200,
+            'status'     => 'completed',
         ]);
         $shift = $this->openShiftFor($this->admin, ['opened_at' => now()->subHours(3)]);
         $shift->update(['status' => 'closed', 'closed_at' => now()->subHour()]);
         $r = Receipt::create([
-            'receipt_no' => 'RC-' . uniqid(), 'sale_id' => $sale->id, 'user_id' => $this->admin->id,
+            'receipt_no'   => 'RC-' . uniqid(), 'sale_id'     => $sale->id, 'user_id'  => $this->admin->id,
             'payment_date' => now()->toDateString(), 'amount' => 200, 'payment_method' => 'cash', 'status' => 'active',
         ]);
         $r->forceFill(['created_at' => now()->subMinutes(90)])->save();
@@ -781,10 +796,10 @@ class BusinessRulesTest extends TestCase
 
     public function test_cannot_void_po_receipt_after_supplier_payment_and_cost_is_restored_otherwise(): void
     {
-        $s = Supplier::create(['name' => 'Sup', 'is_active' => true]);
-        $p = $this->product(['stock' => 0, 'cost' => 100]);
+        $s  = Supplier::create(['name' => 'Sup', 'is_active' => true]);
+        $p  = $this->product(['stock' => 0, 'cost' => 100]);
         $po = PurchaseOrder::create([
-            'po_no' => 'PO-C', 'supplier_id' => $s->id, 'user_id' => $this->admin->id,
+            'po_no'      => 'PO-C', 'supplier_id'           => $s->id, 'user_id'         => $this->admin->id,
             'order_date' => now()->toDateString(), 'status' => 'pending', 'total_amount' => 650,
         ]);
         $po->items()->create(['product_id' => $p->id, 'quantity' => 5, 'unit_cost' => 130, 'total' => 650]);
@@ -810,7 +825,7 @@ class BusinessRulesTest extends TestCase
 
     public function test_ap_aging_counts_from_due_date_using_supplier_credit_term(): void
     {
-        $s = Supplier::create(['name' => 'Credit Sup', 'is_active' => true, 'credit_term_days' => 60]);
+        $s  = Supplier::create(['name' => 'Credit Sup', 'is_active' => true, 'credit_term_days' => 60]);
         $po = $this->receivedPo(1000, now()->subDays(100)->toDateString());
         $po->update(['supplier_id' => $s->id]);
 
@@ -830,7 +845,7 @@ class BusinessRulesTest extends TestCase
         $p = $this->product();
         $this->post(route('quotations.store'), [
             'quote_date' => now()->toDateString(), 'valid_until' => now()->addDays(5)->toDateString(),
-            'items' => [['product_id' => $p->id, 'quantity' => 3, 'price' => 10.10]],
+            'items'      => [['product_id' => $p->id, 'quantity' => 3, 'price' => 10.10]],
         ]);
         $q = Quotation::first();
         $this->assertEquals(30.30, (float) $q->total);
@@ -839,7 +854,252 @@ class BusinessRulesTest extends TestCase
         // ทศนิยมเกิน 2 ตำแหน่งต้องถูกปฏิเสธ
         $this->post(route('quotations.store'), [
             'quote_date' => now()->toDateString(), 'valid_until' => now()->addDays(5)->toDateString(),
-            'items' => [['product_id' => $p->id, 'quantity' => 1, 'price' => 10.005]],
+            'items'      => [['product_id' => $p->id, 'quantity' => 1, 'price' => 10.005]],
         ])->assertSessionHasErrors('items.0.price');
+    }
+
+    public function test_po_receive_uses_weighted_average_cost_and_void_restores_it(): void
+    {
+        $s  = Supplier::create(['name' => 'Sup', 'is_active' => true]);
+        $p  = $this->product(['stock' => 10, 'cost' => 100]);
+        $po = PurchaseOrder::create([
+            'po_no'      => 'PO-AVG', 'supplier_id'         => $s->id, 'user_id'         => $this->admin->id,
+            'order_date' => now()->toDateString(), 'status' => 'pending', 'total_amount' => 1400,
+        ]);
+        $po->items()->create(['product_id' => $p->id, 'quantity' => 10, 'unit_cost' => 140, 'total' => 1400]);
+
+        $this->post(route('purchase-orders.receive', $po));
+        // (10×100 + 10×140) / 20 = 120
+        $this->assertEquals(120, $p->fresh()->cost);
+        $this->assertSame(20, $p->fresh()->stock);
+
+        $this->delete(route('stock-documents.destroy', StockDocument::first()));
+        $this->assertEquals(100, $p->fresh()->cost);
+        $this->assertSame(10, $p->fresh()->stock);
+    }
+
+    public function test_po_cancel_requires_reason_and_records_it_and_delete_is_blocked(): void
+    {
+        $s  = Supplier::create(['name' => 'Sup', 'is_active' => true]);
+        $po = PurchaseOrder::create([
+            'po_no'      => 'PO-CAN', 'supplier_id'         => $s->id, 'user_id'         => $this->admin->id,
+            'order_date' => now()->toDateString(), 'status' => 'pending', 'total_amount' => 0,
+        ]);
+
+        $this->post(route('purchase-orders.cancel', $po))->assertSessionHasErrors('cancel_reason');
+        $this->assertSame('pending', $po->fresh()->status);
+
+        $this->delete(route('purchase-orders.destroy', $po));
+        $this->assertNotNull(PurchaseOrder::find($po->id));
+
+        $this->post(route('purchase-orders.cancel', $po), ['cancel_reason' => 'สั่งผิดรุ่น']);
+        $fresh = $po->fresh();
+        $this->assertSame('cancelled', $fresh->status);
+        $this->assertSame('สั่งผิดรุ่น', $fresh->cancel_reason);
+        $this->assertSame($this->admin->id, (int) $fresh->cancelled_by);
+    }
+
+    public function test_voided_sale_stays_in_stock_movement_report_with_reversal_row(): void
+    {
+        $p    = $this->product(['stock' => 5]);
+        $sale = Sale::create([
+            'invoice_no'      => 'INV-VOID-1', 'user_id' => $this->admin->id, 'subtotal'    => 10, 'discount'        => 0,
+            'total'           => 10, 'payment_method'    => 'cash', 'payment_status'        => 'paid', 'paid_amount' => 10,
+            'received_amount' => 10, 'change_amount'     => 0, 'status'                     => 'voided',
+            'voided_at'       => now(), 'voided_by'      => $this->admin->id, 'void_reason' => 'ทดสอบ',
+        ]);
+        $sale->items()->create([
+            'product_id' => $p->id, 'quantity' => 1, 'price' => 10, 'cost_at_sale' => 5, 'total' => 10, 'stock_after' => 4,
+        ]);
+
+        $this->get(route('reports.stock-movement'))
+            ->assertOk()
+            ->assertSee('INV-VOID-1')
+            ->assertSee('ยกเลิกบิลขาย');
+    }
+
+    public function test_pos_lists_out_of_stock_products_but_cannot_sell_them(): void
+    {
+        $p = $this->product(['stock' => 0, 'name' => 'อะไหล่หมดสต็อกทดสอบ']);
+
+        // หน้า POS ส่งสินค้าเป็น JSON (ชื่อไทยถูก escape เป็น \uXXXX) จึงตรวจด้วย SKU ที่เป็น ASCII
+        $this->get(route('sales.index'))->assertOk()->assertSee($p->sku, false);
+
+        $this->postJson(route('sales.store'), [
+            'items'           => [['product_id' => $p->id, 'quantity' => 1]],
+            'payment_method'  => 'cash',
+            'received_amount' => 99999,
+        ])->assertStatus(422);
+
+        $this->assertSame(0, $p->fresh()->stock);
+        $this->assertSame(0, Sale::count());
+    }
+
+    public function test_partial_return_of_cash_sale_restocks_and_refunds(): void
+    {
+        $p    = $this->product(['stock' => 10, 'price' => 200]);
+        $sale = $this->makeSale($p, 4); // ยอด 800, สต็อกเหลือ 6
+        $item = $sale->items()->first();
+
+        $this->post(route('sale-returns.store', $sale), [
+            'items'         => [['sale_item_id' => $item->id, 'quantity' => 1, 'restock' => 1]],
+            'refund_method' => 'cash', 'reason' => 'เปลี่ยนใจ',
+        ])->assertSessionHasNoErrors();
+
+        $this->assertSame(7, $p->fresh()->stock);
+        $r = \App\Models\SaleReturn::first();
+        $this->assertEquals(200, $r->total_value);
+        $this->assertEquals(200, $r->refund_amount);
+        $this->assertSame('cash', $r->refund_method);
+        $this->assertEquals(200, $sale->fresh()->returned_amount);
+        $this->assertEquals(200, $sale->fresh()->refunded_amount);
+        $this->assertSame('paid', $sale->fresh()->payment_status);
+    }
+
+    public function test_return_without_restock_does_not_increase_stock(): void
+    {
+        $p    = $this->product(['stock' => 10, 'price' => 200]);
+        $sale = $this->makeSale($p, 2); // สต็อกเหลือ 8
+        $item = $sale->items()->first();
+
+        $this->post(route('sale-returns.store', $sale), [
+            'items'         => [['sale_item_id' => $item->id, 'quantity' => 1, 'restock' => 0]],
+            'refund_method' => 'transfer', 'reason' => 'ของชำรุด',
+        ])->assertSessionHasNoErrors();
+
+        $this->assertSame(8, $p->fresh()->stock);
+        $this->assertNull(\App\Models\SaleReturnItem::first()->stock_after);
+    }
+
+    public function test_cannot_return_more_than_sold_including_previous_returns(): void
+    {
+        $p    = $this->product(['stock' => 10, 'price' => 200]);
+        $sale = $this->makeSale($p, 3);
+        $item = $sale->items()->first();
+
+        $this->post(route('sale-returns.store', $sale), [
+            'items'         => [['sale_item_id' => $item->id, 'quantity' => 2, 'restock' => 1]],
+            'refund_method' => 'cash', 'reason' => 'a',
+        ]);
+        $this->assertSame(1, \App\Models\SaleReturn::count());
+
+        // คืนไปแล้ว 2 จากที่ซื้อ 3 → คืนเพิ่ม 2 ไม่ได้
+        $this->post(route('sale-returns.store', $sale), [
+            'items'         => [['sale_item_id' => $item->id, 'quantity' => 2, 'restock' => 1]],
+            'refund_method' => 'cash', 'reason' => 'b',
+        ])->assertSessionHas('error');
+        $this->assertSame(1, \App\Models\SaleReturn::count());
+        $this->assertSame(9, $p->fresh()->stock); // 10 - 3 + 2
+    }
+
+    public function test_bill_discount_is_distributed_and_full_return_refunds_exactly_total(): void
+    {
+        $p    = $this->product(['stock' => 10, 'price' => 200]);
+        $sale = $this->makeSale($p, 2, ['discount' => 40]); // ยอดก่อนลด 400 ลด 40 = 360
+        $item = $sale->items()->first();
+
+        $this->post(route('sale-returns.store', $sale), [
+            'items'         => [['sale_item_id' => $item->id, 'quantity' => 1, 'restock' => 1]],
+            'refund_method' => 'cash', 'reason' => 'a',
+        ]);
+        $this->assertEquals(180, \App\Models\SaleReturn::first()->refund_amount);
+
+        $this->post(route('sale-returns.store', $sale), [
+            'items'         => [['sale_item_id' => $item->id, 'quantity' => 1, 'restock' => 1]],
+            'refund_method' => 'cash', 'reason' => 'b',
+        ]);
+        $this->assertEquals(360, $sale->fresh()->refunded_amount);
+        $this->assertEquals(360, $sale->fresh()->returned_amount);
+    }
+
+    public function test_refund_method_required_when_money_must_be_refunded(): void
+    {
+        $p    = $this->product(['stock' => 10, 'price' => 200]);
+        $sale = $this->makeSale($p, 1);
+        $item = $sale->items()->first();
+
+        $this->post(route('sale-returns.store', $sale), [
+            'items'  => [['sale_item_id' => $item->id, 'quantity' => 1, 'restock' => 1]],
+            'reason' => 'a',
+        ])->assertSessionHas('error');
+        $this->assertSame(0, \App\Models\SaleReturn::count());
+        $this->assertSame(9, $p->fresh()->stock);
+    }
+
+    public function test_return_on_unpaid_credit_sale_reduces_outstanding_without_refund(): void
+    {
+        $c    = Customer::create(['name' => 'ลูกค้าเชื่อ', 'is_active' => true]);
+        $p    = $this->product(['stock' => 10, 'price' => 200]);
+        $sale = $this->makeSale($p, 2, ['payment_method' => 'credit', 'customer_id' => $c->id, 'received_amount' => 0]);
+        $item = $sale->items()->first(); // ยอด 400 ค้างทั้งหมด
+
+        $this->post(route('sale-returns.store', $sale), [
+            'items'  => [['sale_item_id' => $item->id, 'quantity' => 1, 'restock' => 1]],
+            'reason' => 'คืนของ',
+        ])->assertSessionHasNoErrors();
+
+        $r = \App\Models\SaleReturn::first();
+        $this->assertEquals(0, $r->refund_amount);
+        $this->assertNull($r->refund_method);
+        $this->assertEquals(200, $sale->fresh()->outstanding_amount);
+        $this->assertSame('unpaid', $sale->fresh()->payment_status);
+
+        // รับชำระเกินยอดค้างจริง (200) ไม่ได้
+        $this->post(route('receipts.store'), [
+            'sale_id' => $sale->id, 'payment_date' => now()->toDateString(),
+            'amount'  => 300, 'payment_method'     => 'cash',
+        ])->assertSessionHasErrors('amount');
+
+        $this->post(route('receipts.store'), [
+            'sale_id' => $sale->id, 'payment_date' => now()->toDateString(),
+            'amount'  => 200, 'payment_method'     => 'cash',
+        ])->assertSessionHasNoErrors();
+        $this->assertSame('paid', $sale->fresh()->payment_status);
+    }
+
+    public function test_partially_paid_credit_sale_return_refunds_only_the_excess(): void
+    {
+        $c    = Customer::create(['name' => 'ลูกค้าเชื่อ', 'is_active' => true]);
+        $p    = $this->product(['stock' => 10, 'price' => 100]);
+        $sale = $this->makeSale($p, 1, ['payment_method' => 'credit', 'customer_id' => $c->id, 'received_amount' => 0]);
+        $sale->update(['paid_amount' => 70, 'payment_status' => 'partial']); // ยอด 100 จ่ายแล้ว 70
+        $item = $sale->items()->first();
+
+        $this->post(route('sale-returns.store', $sale), [
+            'items'         => [['sale_item_id' => $item->id, 'quantity' => 1, 'restock' => 1]],
+            'refund_method' => 'cash', 'reason' => 'คืนทั้งชิ้น',
+        ])->assertSessionHasNoErrors();
+
+        // คืนของ 100 แต่ลูกค้าจ่ายมา 70 → คืนเงิน 70 และไม่เหลือยอดค้าง
+        $this->assertEquals(70, \App\Models\SaleReturn::first()->refund_amount);
+        $this->assertEquals(0, $sale->fresh()->outstanding_amount);
+        $this->assertSame('paid', $sale->fresh()->payment_status);
+    }
+
+    public function test_sale_with_return_cannot_be_voided(): void
+    {
+        $p    = $this->product(['stock' => 10, 'price' => 200]);
+        $sale = $this->makeSale($p, 2);
+        $item = $sale->items()->first();
+
+        $this->post(route('sale-returns.store', $sale), [
+            'items'         => [['sale_item_id' => $item->id, 'quantity' => 1, 'restock' => 1]],
+            'refund_method' => 'cash', 'reason' => 'a',
+        ]);
+
+        $this->delete(route('sales.destroy', $sale), ['void_reason' => 'x'])->assertSessionHas('error');
+        $this->assertSame('completed', $sale->fresh()->status);
+    }
+
+    public function test_cashier_can_return_but_delivery_cannot(): void
+    {
+        $p    = $this->product(['stock' => 10, 'price' => 200]);
+        $sale = $this->makeSale($p, 1);
+
+        $this->actingAs($this->makeUser('delivery'))
+            ->get(route('sale-returns.index'))->assertForbidden();
+
+        $this->actingAs($this->makeUser('cashier'))
+            ->get(route('sale-returns.create', $sale))->assertStatus(200);
     }
 }

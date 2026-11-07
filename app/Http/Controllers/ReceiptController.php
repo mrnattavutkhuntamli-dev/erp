@@ -67,7 +67,10 @@ class ReceiptController extends Controller
                 $total     = $this->toSatang($sale->total);
                 $paid      = $this->toSatang($sale->paid_amount);
                 $amount    = $this->toSatang($validated['amount']);
-                $remaining = max(0, $total - $paid);
+
+                $returned  = $this->toSatang($sale->returned_amount);
+                $refunded  = $this->toSatang($sale->refunded_amount);
+                $remaining = max(0, $total - $returned - ($paid - $refunded));
 
                 if ($amount > $remaining) {
                     throw ValidationException::withMessages([
@@ -95,7 +98,7 @@ class ReceiptController extends Controller
 
                 $sale->update([
                     'paid_amount'    => $this->fromSatang($newPaid),
-                    'payment_status' => $newPaid >= $total ? 'paid' : 'partial',
+                    'payment_status' => ($remaining - $amount) <= 0 ? 'paid' : 'partial',
                 ]);
 
                 return redirect()->route('receipts.show', $receipt->id)
@@ -116,25 +119,13 @@ class ReceiptController extends Controller
      */
     public function show(Request $request, ?Receipt $receipt = null)
     {
-        // กรณีเข้าด้วย ?sale_id= เพื่อสร้างใบรับเงินใหม่
+        // กรณีเข้าด้วย ?sale_id= → ส่งต่อไปเส้นทางสร้างใบรับเงินเส้นเดียว (ตรวจสถานะ/จ่ายครบแล้วในที่เดียว)
         if ($request->has('sale_id')) {
-            $sale = Sale::with('customer')->find($request->query('sale_id'));
+            $sale = Sale::find($request->query('sale_id'));
 
-            if (! $sale) {
-                return redirect()->route('receipts.create')->with('error', 'ไม่พบบิลที่ระบุ');
-            }
-
-            if ($sale->status !== 'completed') {
-                return redirect()->route('receipts.create')
-                    ->with('error', 'บิลนี้ไม่สามารถรับชำระเงินได้');
-            }
-
-            $idempotencyKey = (string) Str::uuid();
-            return view('receipts.show', [
-                'receipt'        => null,
-                'sale'           => $sale,
-                'idempotencyKey' => $idempotencyKey,
-            ]);
+            return $sale
+                ? redirect()->route('receipts.create-from-sale', $sale->id)
+                : redirect()->route('receipts.create')->with('error', 'ไม่พบบิลที่ระบุ');
         }
 
         // กรณีดู Receipt ที่มีอยู่
@@ -179,6 +170,11 @@ class ReceiptController extends Controller
                 }
 
                 $total   = $this->toSatang($sale->total);
+                if ($sale->returns()->where('status', 'completed')->exists()) {
+                    throw ValidationException::withMessages([
+                        'receipt' => 'ไม่สามารถยกเลิกใบรับเงินได้ เพราะบิลนี้มีการรับคืนสินค้าแล้ว',
+                    ]);
+                }
                 $newPaid = max(0, $this->toSatang($sale->paid_amount) - $this->toSatang($receipt->amount));
 
                 $sale->update([

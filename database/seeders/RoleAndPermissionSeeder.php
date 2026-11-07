@@ -25,7 +25,7 @@ class RoleAndPermissionSeeder extends Seeder
             'adjust-stock', // ปรับปรุงสต็อก (แยกจากการสร้างเอกสารรับ/เบิก)
 
             // การขาย
-            'view-sales', 'create-sale', 'void-sale',
+            'view-sales', 'create-sale', 'void-sale', 'return-sale',
 
             // การเงิน
             'manage-receipts', 'void-receipt', 'manage-expenses',
@@ -50,7 +50,7 @@ class RoleAndPermissionSeeder extends Seeder
         $cashier = Role::firstOrCreate(['name' => 'cashier']);
         $cashier->syncPermissions([
             'view-products', 'view-stock',
-            'view-sales', 'create-sale', 'manage-receipts',
+            'view-sales', 'create-sale', 'manage-receipts', 'return-sale',
             'manage-customers'
             // ไม่มี void-sale: การยกเลิกบิลต้องเป็น admin
         ]);

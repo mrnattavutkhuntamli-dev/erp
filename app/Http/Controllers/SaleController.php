@@ -26,7 +26,7 @@ class SaleController extends Controller
 
         $products = Product::with('primaryImage:id,product_id,image_path')
             ->where('is_active', true)
-            ->where('stock', '>', 0)
+        // แสดงสินค้าที่หมดสต็อกด้วย (หน้าจอจะทำให้กดไม่ได้และขึ้น "หมด") เพื่อให้เห็นว่ามีสินค้านี้ในร้าน
             ->orderBy('name')
             ->get(['id', 'name', 'sku', 'price', 'stock', 'category_id']);
 
@@ -93,7 +93,7 @@ class SaleController extends Controller
                 // รวมสินค้าซ้ำ + เรียงตาม product_id (กัน deadlock)
                 $lines = collect($validated['items'])
                     ->groupBy('product_id')
-                    ->map(fn ($g, $id) => [
+                    ->map(fn($g, $id) => [
                         'product_id' => (int) $id,
                         'quantity'   => (int) $g->sum('quantity'),
                     ])
@@ -112,7 +112,7 @@ class SaleController extends Controller
 
                     $unitCents      = Money::toCents($product->price);
                     $itemTotalCents = $unitCents * (int) $item['quantity'];
-                    $subtotalCents += $itemTotalCents;
+                    $subtotalCents  += $itemTotalCents;
 
                     $saleItemsData[] = [
                         'product'      => $product,
@@ -267,6 +267,11 @@ class SaleController extends Controller
                     throw new \DomainException(
                         'ไม่สามารถยกเลิกบิลนี้ได้ เพราะมีการรับชำระเงินแล้ว กรุณายกเลิกใบรับเงิน ' . $activeReceipt->receipt_no . ' ก่อน'
                     );
+                }
+
+                // ✅ ห้าม void บิลที่มีการรับคืนสินค้าแล้ว (ไม่งั้นสต็อกและยอดคืนเงินจะซ้ำซ้อน)
+                if ($locked->returns()->where('status', 'completed')->exists()) {
+                    throw new \DomainException('ไม่สามารถยกเลิกบิลนี้ได้ เพราะมีการรับคืนสินค้าแล้ว');
                 }
 
                 foreach ($locked->items()->orderBy('product_id')->get() as $item) {

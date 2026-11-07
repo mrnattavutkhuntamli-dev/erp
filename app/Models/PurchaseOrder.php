@@ -8,12 +8,14 @@ class PurchaseOrder extends Model
     // กำหนดฟิลด์ที่อนุญาตให้บันทึกข้อมูลแบบ Mass Assignment ได้
     protected $fillable = [
         'po_no', 'supplier_id', 'user_id', 'order_date',
-        'expected_date', 'received_at', 'status', 'total_amount', 'paid_amount', 'note'
+        'expected_date', 'received_at', 'status', 'total_amount', 'paid_amount', 'note',
+        'cancel_reason', 'cancelled_at', 'cancelled_by',
     ];
     protected $casts = [
         'order_date'    => 'date',
         'expected_date' => 'date',
         'received_at'   => 'datetime',
+        'cancelled_at'  => 'datetime',
         'total_amount'  => 'decimal:2',
         'paid_amount'   => 'decimal:2',
     ];

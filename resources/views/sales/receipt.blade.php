@@ -13,6 +13,7 @@
             'transfer' => 'โอนเงิน',
             default => 'บัตรเครดิต',
         };
+        $returned = (float) ($sale->returned_amount ?? 0);
     @endphp
 
     <style>
@@ -32,16 +33,31 @@
 
         <!-- ปุ่มควบคุม (ซ่อนเวลาพิมพ์) -->
         <div class="mb-4 flex flex-wrap items-center justify-between gap-3 print:hidden">
-            <a href="{{ route('sales.index') }}"
+            {{-- แก้ 1: กลับไปหน้าประวัติการขาย --}}
+            <a href="{{ route('sales.history') }}"
                class="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 transition-colors">
                 <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18"/></svg>
-                กลับไปหน้าระบบขาย
+                กลับไปประวัติการขาย
             </a>
-            <button type="button" onclick="window.print()"
-                    class="inline-flex items-center gap-2 rounded-lg bg-ink-900 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-ink-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 transition-colors">
-                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6.72 13.829c-.24.03-.48.062-.72.096m.72-.096a42.415 42.415 0 0110.56 0m-10.56 0L6.34 18m10.94-4.171c.24.03.48.062.72.096m-.72-.096L17.66 18m0 0l.229 2.523a1.125 1.125 0 01-1.12 1.227H7.231c-.662 0-1.18-.568-1.12-1.227L6.34 18m11.318 0h1.091A2.25 2.25 0 0021 15.75V9.456c0-1.081-.768-2.015-1.837-2.175a48.055 48.055 0 00-1.913-.247M6.34 18H5.25A2.25 2.25 0 013 15.75V9.456c0-1.081.768-2.015 1.837-2.175a48.041 48.041 0 011.913-.247m10.5 0a48.536 48.536 0 00-10.5 0m10.5 0V3.375c0-.621-.504-1.125-1.125-1.125h-8.25c-.621 0-1.125.504-1.125 1.125v3.659M18 10.5h.008v.008H18V10.5zm-3 0h.008v.008H15V10.5z"/></svg>
-                พิมพ์ใบเสร็จ
-            </button>
+
+            <div class="flex flex-wrap gap-2">
+                {{-- แก้ 2: ปุ่มคืนสินค้า --}}
+                @if (! $voided)
+                    @can('return-sale')
+                        <a href="{{ route('sale-returns.create', $sale->id) }}"
+                           class="inline-flex items-center gap-2 rounded-lg border border-amber-300 bg-white px-4 py-2 text-sm font-medium text-amber-700 hover:bg-amber-500 hover:border-amber-500 hover:text-ink-950 transition-colors">
+                            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3"/></svg>
+                            คืนสินค้า
+                        </a>
+                    @endcan
+                @endif
+
+                <button type="button" onclick="window.print()"
+                        class="inline-flex items-center gap-2 rounded-lg bg-ink-900 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-ink-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 transition-colors">
+                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6.72 13.829c-.24.03-.48.062-.72.096m.72-.096a42.415 42.415 0 0110.56 0m-10.56 0L6.34 18m10.94-4.171c.24.03.48.062.72.096m-.72-.096L17.66 18m0 0l.229 2.523a1.125 1.125 0 01-1.12 1.227H7.231c-.662 0-1.18-.568-1.12-1.227L6.34 18m11.318 0h1.091A2.25 2.25 0 0021 15.75V9.456c0-1.081-.768-2.015-1.837-2.175a48.055 48.055 0 00-1.913-.247M6.34 18H5.25A2.25 2.25 0 013 15.75V9.456c0-1.081.768-2.015 1.837-2.175a48.041 48.041 0 011.913-.247m10.5 0a48.536 48.536 0 00-10.5 0m10.5 0V3.375c0-.621-.504-1.125-1.125-1.125h-8.25c-.621 0-1.125.504-1.125 1.125v3.659M18 10.5h.008v.008H18V10.5zm-3 0h.008v.008H15V10.5z"/></svg>
+                    พิมพ์ใบเสร็จ
+                </button>
+            </div>
         </div>
 
         <!-- กระดาษใบเสร็จ -->
@@ -116,7 +132,8 @@
                         @foreach ($sale->items as $i => $item)
                             <tr>
                                 <td class="col text-center">{{ $i + 1 }}</td>
-                                <td class="col text-center">{{ $item->product->name }}</td>
+                                {{-- แก้ 3 + 6: กัน error สินค้าถูกลบ และจัดชิดซ้าย --}}
+                                <td class="col text-left">{{ $item->product->name ?? '-' }}</td>
                                 <td class="col text-center">{{ $item->quantity }}</td>
                                 <td class="col text-right">{{ number_format($item->price, 2) }}</td>
                                 <td class="col text-center">-</td>
@@ -143,7 +160,8 @@
             <div class="mt-3 flex items-start justify-between gap-6">
                 <div class="text-xs">
                     <span class="rc-label">หมายเหตุ</span>
-                    <p class="mt-1 text-slate-600">สินค้าซื้อแล้วไม่รับคืน/เปลี่ยน (ยกเว้นกรณีชำรุดจากผู้ผลิต)</p>
+                    {{-- แก้ 4: ข้อความหมายเหตุ (ปรับตามนโยบายร้านจริง) --}}
+                    <p class="mt-1 text-slate-600">รับคืนสินค้าตามเงื่อนไขของร้าน พร้อมใบเสร็จรับเงินฉบับนี้</p>
                 </div>
 
                 <table class="w-[300px] shrink-0 border-collapse text-xs">
@@ -159,6 +177,17 @@
                         <td class="border border-slate-800 bg-slate-100 px-3 py-2 text-right text-sm font-bold">จำนวนเงินรวมทั้งสิ้น (บาท)</td>
                         <td class="border border-slate-800 px-3 py-2 text-right text-sm font-bold">{{ number_format($sale->total, 2) }}-</td>
                     </tr>
+                    {{-- แก้ 5: แสดงยอดรับคืน (เฉพาะบิลที่มีการคืนสินค้า) --}}
+                    @if ($returned > 0)
+                        <tr>
+                            <td class="border border-slate-800 bg-slate-100 px-3 py-1.5 text-right font-semibold">หักรับคืนสินค้า</td>
+                            <td class="border border-slate-800 px-3 py-1.5 text-right">-{{ number_format($returned, 2) }}</td>
+                        </tr>
+                        <tr>
+                            <td class="border border-slate-800 bg-slate-100 px-3 py-2 text-right text-sm font-bold">ยอดสุทธิหลังรับคืน (บาท)</td>
+                            <td class="border border-slate-800 px-3 py-2 text-right text-sm font-bold">{{ number_format($sale->total - $returned, 2) }}-</td>
+                        </tr>
+                    @endif
                 </table>
             </div>
 

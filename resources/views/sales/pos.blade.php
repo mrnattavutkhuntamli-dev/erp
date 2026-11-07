@@ -88,7 +88,7 @@
             const out = product.stock <= 0;
 
             return `
-                <button type="button" class="pos-card" onclick="addToCart(${Number(product.id)})" ${out ? 'disabled' : ''}>
+                <button type="button" class="pos-card" onclick="addToCart(${Number(product.id)})" ${out ? 'disabled aria-disabled="true" title="สินค้าหมดสต็อก"' : ''}>
                     <span class="pos-thumb" style="--h: ${hue}">
                         ${imagePath
                             ? `<img src="${esc(STORAGE_URL + '/' + imagePath)}" alt="${esc(name)}" loading="lazy">`
@@ -103,7 +103,7 @@
                         <span class="pos-sku">${esc(product.sku)}</span>
                         <span class="pos-foot">
                             <span class="pos-price">${priceTag(product.price)}</span>
-                            <span class="pos-stock ${product.stock < 10 ? 'low' : ''}">${out ? 'หมด' : 'เหลือ ' + product.stock}</span>
+                            <span class="pos-stock ${out ? 'out' : (product.stock < 10 ? 'low' : '')}">${out ? 'หมด' : 'เหลือ ' + product.stock}</span>
                         </span>
                     </span>
                 </button>`;
@@ -569,7 +569,9 @@
                 const q = e.target.value.trim().toLowerCase();
                 if (!q) return;
 
+                // SKU ตรงเป๊ะ → ใช้ตัวนั้น (ถ้าหมดสต็อก addToCart จะแจ้งเตือน) / ไม่ตรง → เลือกตัวแรกที่ยังมีของ
                 const target = filteredProducts.find(p => String(p.sku || '').toLowerCase() === q) ||
+                    filteredProducts.find(p => p.stock > 0) ||
                     filteredProducts[0];
 
                 if (!target) {
@@ -788,6 +790,9 @@
         .pos-price { font-size: 1.1875rem; font-weight: 700; }
         .pos-stock { font-size: .75rem; color: var(--mute); }
         .pos-stock.low { color: var(--danger); font-weight: 600; }
+        .pos-stock.out { color: #fff; background: var(--danger); font-weight: 600; padding: 1px 8px; border-radius: 999px; }
+        .pos-card:disabled .pos-thumb { filter: grayscale(1); }
+        .pos-card:disabled .pos-add { display: none; }
         .pos-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 64px 16px; text-align: center; color: var(--mute); font-size: .9375rem; }
 
         .pos-more-wrap { display: flex; justify-content: center; margin: 20px 0 8px; }

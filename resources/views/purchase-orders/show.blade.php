@@ -7,17 +7,6 @@
         <div class="flex justify-between items-center mb-6 print:hidden">
             <a href="{{ route('purchase-orders.index') }}" class="text-blue-600 hover:underline">&larr; กลับไปหน้ารายการ</a>
             <div class="flex gap-2">
-                {{-- ✅ ปุ่มลบ (แสดงเฉพาะ Pending และผู้มีสิทธิ์) --}}
-                @if($purchaseOrder->status === 'pending' && auth()->user()->can('create-stock-document'))
-                    <form action="{{ route('purchase-orders.destroy', $purchaseOrder->id) }}" method="POST"
-                          onsubmit="return confirm('ยืนยันการลบ PO? (แนะนำให้ใช้การยกเลิกแทน)');">
-                        @csrf
-                        @method('DELETE')
-                        <button type="submit" class="bg-red-500 text-white px-4 py-2 rounded-lg shadow hover:bg-red-600">
-                            🗑️ ลบ PO
-                        </button>
-                    </form>
-                @endif
                 <button onclick="window.print()" class="bg-slate-800 text-white px-4 py-2 rounded-lg shadow hover:bg-slate-900">
                     🖨️ พิมพ์เอกสาร
                 </button>
@@ -137,11 +126,19 @@
                 </div>
             @endif
 
+            @if($purchaseOrder->status === 'cancelled' && $purchaseOrder->cancel_reason)
+                <div class="mt-6 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                    <div class="font-bold">PO นี้ถูกยกเลิก{{ $purchaseOrder->cancelled_at ? ' เมื่อ ' . $purchaseOrder->cancelled_at->format('d/m/Y H:i') : '' }}</div>
+                    <div class="mt-1">เหตุผล: {{ $purchaseOrder->cancel_reason }}</div>
+                </div>
+            @endif
+
             <!-- ปุ่มรับของ / ยกเลิก (เฉพาะ Pending) -->
             @if($purchaseOrder->status === 'pending' && auth()->user()->can('create-stock-document'))
                 <div class="mt-8 flex justify-end space-x-3 print:hidden">
-                    <form action="{{ route('purchase-orders.cancel', $purchaseOrder->id) }}" method="POST" onsubmit="return confirm('ยืนยันการยกเลิก PO?');">
+                    <form action="{{ route('purchase-orders.cancel', $purchaseOrder->id) }}" method="POST" onsubmit="var r = prompt('ระบุเหตุผลที่ยกเลิก PO:'); if (!r || !r.trim()) { return false; } this.cancel_reason.value = r.trim(); return true;">
                         @csrf
+                        <input type="hidden" name="cancel_reason" value="">
                         <button type="submit" class="bg-red-500 text-white px-6 py-3 rounded-lg hover:bg-red-600 shadow-lg font-bold">❌ ยกเลิก PO</button>
                     </form>
                     <form action="{{ route('purchase-orders.receive', $purchaseOrder->id) }}" method="POST" onsubmit="return confirm('ยืนยันการรับของ? ระบบจะเพิ่มสต็อกสินค้าให้อัตโนมัติ');">

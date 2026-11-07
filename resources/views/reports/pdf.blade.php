@@ -104,16 +104,29 @@
             color: #0066cc;
         }
 
+        .summary-item small {
+            display: block;
+            margin-top: 4px;
+            font-size: 10px;
+            color: #666;
+        }
+
         .text-red {
             color: red;
             font-weight: bold;
+        }
+
+        .note {
+            font-size: 10px;
+            color: #666;
+            margin-top: -12px;
+            margin-bottom: 20px;
         }
     </style>
 </head>
 
 <body>
     <div class="header">
-        <!-- ✅ ลบอีโมจิออก -->
         <h1>AutoPart ERP - รายงานยอดขาย</h1>
         <p>ช่วงวันที่: {{ \Carbon\Carbon::parse($startDate)->format('d/m/Y') }} ถึง
             {{ \Carbon\Carbon::parse($endDate)->format('d/m/Y') }}</p>
@@ -123,9 +136,12 @@
     <!-- สรุปภาพรวม -->
     <div class="summary">
         <div class="summary-item">
-            <label>ยอดขายรวม</label>
-            <!-- ✅ เปลี่ยน ฿ เป็นคำว่า บาท -->
+            {{-- แก้ 1: ยอดขายสุทธิหลังรับคืน --}}
+            <label>ยอดขายสุทธิ (หลังรับคืน)</label>
             <value>{{ number_format($totalSales, 2) }} บาท</value>
+            @if ($returnedTotal > 0)
+                <small>ขาย {{ number_format($grossSales, 2) }} − รับคืน {{ number_format($returnedTotal, 2) }} บาท</small>
+            @endif
         </div>
         <div class="summary-item">
             <label>จำนวนบิล</label>
@@ -138,7 +154,6 @@
     </div>
 
     <!-- สินค้าขายดี -->
-    <!-- ✅ ลบอีโมจิออก -->
     <h2>สินค้าขายดี 10 อันดับ</h2>
     <table>
         <thead>
@@ -146,8 +161,9 @@
                 <th class="text-center" width="40">อันดับ</th>
                 <th>รหัสสินค้า</th>
                 <th>ชื่อสินค้า</th>
-                <th class="text-center">จำนวนที่ขาย</th>
-                <th class="text-right">รายได้รวม</th>
+                {{-- แก้ 2: หัวคอลัมน์เป็นยอดสุทธิ --}}
+                <th class="text-center">จำนวนสุทธิ</th>
+                <th class="text-right">รายได้สุทธิ</th>
             </tr>
         </thead>
         <tbody>
@@ -157,7 +173,6 @@
                     <td>{{ $item->product->sku ?? '-' }}</td>
                     <td>{{ $item->product->name ?? 'สินค้าถูกลบ' }}</td>
                     <td class="text-center">{{ number_format($item->total_qty) }}</td>
-                    <!-- ✅ เปลี่ยน ฿ เป็น บาท -->
                     <td class="text-right">{{ number_format($item->total_revenue, 2) }} บาท</td>
                 </tr>
             @empty
@@ -167,9 +182,10 @@
             @endforelse
         </tbody>
     </table>
+    {{-- แก้ 3: หมายเหตุวิธีคิด --}}
+    <p class="note">หมายเหตุ: จำนวนและรายได้ของสินค้าขายดีหักรายการรับคืนสินค้าในช่วงเวลาเดียวกันแล้ว</p>
 
     <!-- รายงานสต็อก -->
-    <!-- ✅ ลบอีโมจิออก -->
     <h2>รายงานสินค้าคงเหลือ (Stock Card)</h2>
     <table>
         <thead>
@@ -192,7 +208,6 @@
                     <td class="text-center {{ $product->stock < 10 ? 'text-red' : '' }}">
                         {{ number_format($product->stock) }}
                     </td>
-                    <!-- ✅ เปลี่ยน ฿ เป็น บาท -->
                     <td class="text-right">{{ number_format($product->cost * $product->stock, 2) }} บาท</td>
                 </tr>
             @endforeach

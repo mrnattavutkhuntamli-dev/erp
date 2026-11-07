@@ -108,6 +108,16 @@ class PurchaseOrderController extends Controller
 
     public function receive(PurchaseOrder $purchaseOrder)
     {
+        try {
+            return $this->doReceive($purchaseOrder);
+        } catch (\Throwable $e) {
+            report($e);
+            return back()->with('error', 'เกิดข้อผิดพลาดระหว่างรับของ กรุณาลองใหม่อีกครั้ง');
+        }
+    }
+
+    private function doReceive(PurchaseOrder $purchaseOrder)
+    {
         return DB::transaction(function () use ($purchaseOrder) {
             $po = PurchaseOrder::lockForUpdate()->findOrFail($purchaseOrder->id);
 
@@ -139,8 +149,17 @@ class PurchaseOrderController extends Controller
                 $product->increment('stock', $item->quantity);
                 $newStock = $product->fresh()->stock;
 
-                // ✅ อัปเดตต้นทุนล่าสุด (ใช้ราคาทุนจาก PO)
-                $product->update(['cost' => $item->unit_cost]);
+                // ✅ อัปเดตต้นทุนแบบถัวเฉลี่ยถ่วงน้ำหนัก (สต็อกเดิม × ต้นทุนเดิม + ของใหม่ × ราคา PO)
+                // ถ้าไม่มีสต็อกเดิม หรือยังไม่เคยตั้งต้นทุน → ใช้ราคาจาก PO ตรง ๆ
+                $oldQtyCents  = max(0, (int) $oldStock);
+                $oldCostCents = Money::toCents($oldCost ?? 0);
+                $newCostCents = Money::toCents($item->unit_cost);
+                $avgCents = ($oldQtyCents > 0 && $oldCostCents > 0)
+                    ? (int) round(($oldQtyCents * $oldCostCents + (int) $item->quantity * $newCostCents)
+                        / ($oldQtyCents + (int) $item->quantity))
+                    : $newCostCents;
+                $avgCost = Money::fromCents($avgCents);
+                $product->update(['cost' => $avgCost]);
 
                 // ✅ บันทึกรายการใน StockDocument
                 $stockDoc->items()->create([
@@ -148,7 +167,7 @@ class PurchaseOrderController extends Controller
                     'quantity'    => $item->quantity,
                     'stock_after' => $newStock,
                     'cost_before' => $oldCost,   // เก็บไว้ เพื่อคืนต้นทุนเดิมถ้าภายหลัง void ใบรับเข้า
-                    'cost_after'  => $item->unit_cost,
+                    'cost_after'  => $avgCost,
                 ]);
             }
 
@@ -199,12 +218,21 @@ class PurchaseOrderController extends Controller
         }
     }
 
-    public function cancel(PurchaseOrder $purchaseOrder)
+    public function cancel(Request $request, PurchaseOrder $purchaseOrder)
     {
+        $validated = $request->validate([
+            'cancel_reason' => 'required|string|max:500',
+        ]);
+
         // อัปเดตแบบ atomic กันชนกับการรับของ
         $updated = PurchaseOrder::where('id', $purchaseOrder->id)
             ->where('status', 'pending')
-            ->update(['status' => 'cancelled']);
+            ->update([
+                'status'        => 'cancelled',
+                'cancel_reason' => $validated['cancel_reason'],
+                'cancelled_at'  => now(),
+                'cancelled_by'  => auth()->id(),
+            ]);
 
         if (! $updated) {
             return back()->with('error', 'ไม่สามารถยกเลิกได้ เนื่องจาก PO นี้ไม่ใช่สถานะ pending');
@@ -235,13 +263,7 @@ class PurchaseOrderController extends Controller
      */
     public function destroy(PurchaseOrder $purchaseOrder)
     {
-        if ($purchaseOrder->status !== 'pending') {
-            return back()->with('error', 'ไม่สามารถลบได้ เนื่องจาก PO นี้อยู่ระหว่างดำเนินการหรือเสร็จสิ้นแล้ว (ใช้การยกเลิกแทน)');
-        }
-
-        $purchaseOrder->delete();
-
-        return redirect()->route('purchase-orders.index')
-            ->with('success', 'ลบใบสั่งซื้อสำเร็จ');
+        // ไม่ลบ PO จริงเพื่อรักษาร่องรอยการตรวจสอบ ให้ใช้การยกเลิก (ระบุเหตุผล) แทน
+        return back()->with('error', 'ไม่อนุญาตให้ลบ PO กรุณาใช้การยกเลิกพร้อมระบุเหตุผลแทน');
     }
 }

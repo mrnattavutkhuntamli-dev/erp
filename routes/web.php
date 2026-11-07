@@ -16,6 +16,7 @@ use App\Http\Controllers\QuotationController;
 use App\Http\Controllers\ReceiptController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\SaleController;
+use App\Http\Controllers\SaleReturnController;
 use App\Http\Controllers\SettingController;
 use App\Http\Controllers\ShiftScheduleController;
 use App\Http\Controllers\StockAdjustmentController;
@@ -26,9 +27,6 @@ use App\Http\Controllers\TwoFactorChallengeController;
 use App\Http\Controllers\TwoFactorController;
 use App\Http\Controllers\UnitController;
 use App\Http\Controllers\UserController;
-use App\Models\Product;
-use App\Models\Supplier;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -185,6 +183,13 @@ Route::middleware(['auth', '2fa'])->group(function () {
         Route::delete('/sales/{sale}', [SaleController::class, 'destroy'])->name('sales.destroy');
     });
 
+    // คืนสินค้า: แยกสิทธิ์จากการยกเลิกบิล (cashier คืนสินค้าได้)
+    Route::middleware('permission:return-sale')->group(function () {
+        Route::get('/sale-returns', [SaleReturnController::class, 'index'])->name('sale-returns.index');
+        Route::get('/sales/{sale}/return', [SaleReturnController::class, 'create'])->name('sale-returns.create');
+        Route::post('/sales/{sale}/return', [SaleReturnController::class, 'store'])->name('sale-returns.store');
+        Route::get('/sale-returns/{saleReturn}', [SaleReturnController::class, 'show'])->name('sale-returns.show');
+    });
     Route::middleware('permission:view-sales')->group(function () {
         Route::get('/sales-history', [SaleController::class, 'history'])->name('sales.history');
     });

@@ -11,6 +11,7 @@ class Sale extends Model
         'payment_method', 'payment_status', 'paid_amount', 'due_date',
         'received_amount', 'change_amount', 'status',
         'voided_at', 'voided_by', 'void_reason', 'idempotency_key',
+        'returned_amount', 'refunded_amount',
     ];
     protected $casts = [
         'due_date'        => 'date',
@@ -21,8 +22,22 @@ class Sale extends Model
         'paid_amount'     => 'decimal:2',
         'received_amount' => 'decimal:2',
         'change_amount'   => 'decimal:2',
+        'returned_amount' => 'decimal:2',
+        'refunded_amount' => 'decimal:2',
     ];
 
+    public function returns()
+    {
+        return $this->hasMany(SaleReturn::class);
+    }
+    /** ยอดค้างชำระจริง หลังหักของที่รับคืนและเงินที่คืนลูกค้าไปแล้ว (ไม่ติดลบ) */
+    public function getOutstandingAmountAttribute(): float
+    {
+        $v = (float) $this->total - (float) $this->returned_amount
+             - ((float) $this->paid_amount - (float) $this->refunded_amount);
+
+        return max(0, round($v, 2));
+    }
     public function items()
     {
         return $this->hasMany(SaleItem::class);

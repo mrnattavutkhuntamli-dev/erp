@@ -5,7 +5,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            // --- กราฟเส้น: ยอดขายรายวัน ---
+            // --- กราฟเส้น: ยอดขายรายวัน (สุทธิหลังรับคืน) ---
             const ctxLine = document.getElementById('salesChart').getContext('2d');
             const labels = @json($dailySales->pluck('date'));
             const data = @json($dailySales->pluck('total'));
@@ -19,7 +19,7 @@
                 data: {
                     labels: labels,
                     datasets: [{
-                        label: 'ยอดขาย (บาท)',
+                        label: 'ยอดขายสุทธิ (บาท)',
                         data: data,
                         borderColor: '#3b82f6',
                         backgroundColor: gradient,
@@ -122,8 +122,15 @@
                 <div class="absolute top-0 right-0 p-4 opacity-10">
                     <svg class="w-16 h-16 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                 </div>
-                <p class="text-sm font-medium text-slate-500">ยอดขายรวม</p>
+                {{-- แก้ 1: ยอดขายสุทธิหลังรับคืน --}}
+                <p class="text-sm font-medium text-slate-500">ยอดขายสุทธิ (หลังรับคืน)</p>
                 <h3 class="text-3xl font-bold text-slate-800 mt-2">฿{{ number_format($totalSales, 2) }}</h3>
+                @if ($returnedTotal > 0)
+                    <p class="mt-1 text-xs text-slate-500">
+                        ขาย ฿{{ number_format($grossSales, 2) }}
+                        <span class="text-amber-700">− รับคืน ฿{{ number_format($returnedTotal, 2) }}</span>
+                    </p>
+                @endif
             </div>
 
             <div class="bg-white p-6 rounded-xl shadow-sm ring-1 ring-slate-200 relative overflow-hidden">
@@ -147,7 +154,8 @@
                     <svg class="w-16 h-16 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
                 </div>
                 <p class="text-sm font-medium text-slate-500">ลูกค้าที่ซื้อมากที่สุด</p>
-                <h3 class="text-xl font-bold text-slate-800 mt-2 truncate">{{ $topCustomers->first()->customer->name ?? '-' }}</h3>
+                {{-- แก้ 3: กัน error เมื่อไม่มีข้อมูล --}}
+                <h3 class="text-xl font-bold text-slate-800 mt-2 truncate">{{ $topCustomers->first()?->customer?->name ?? '-' }}</h3>
             </div>
         </div>
 
@@ -155,7 +163,7 @@
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <!-- Line Chart -->
             <div class="lg:col-span-2 bg-white rounded-xl shadow ring-1 ring-slate-200 p-6">
-                <h3 class="text-lg font-bold text-slate-800 mb-4">📈 แนวโน้มยอดขายรายวัน</h3>
+                <h3 class="text-lg font-bold text-slate-800 mb-4">📈 แนวโน้มยอดขายรายวัน (สุทธิหลังรับคืน)</h3>
                 <div class="h-72">
                     <canvas id="salesChart"></canvas>
                 </div>
@@ -217,7 +225,7 @@
                                 <th class="p-3 font-medium text-center w-12">#</th>
                                 <th class="p-3 font-medium">ลูกค้า</th>
                                 <th class="p-3 font-medium text-center">จำนวนบิล</th>
-                                <th class="p-3 font-medium text-right">ยอดซื้อรวม</th>
+                                <th class="p-3 font-medium text-right">ยอดซื้อสุทธิ</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-slate-100 text-sm">
@@ -264,7 +272,13 @@
                                 <td class="p-3 text-slate-600">{{ $sale->created_at->format('d/m/Y H:i') }}</td>
                                 <td class="p-3 text-slate-800">{{ $sale->customer->name ?? 'ลูกค้าทั่วไป' }}</td>
                                 <td class="p-3 text-slate-600">{{ $sale->user->name }}</td>
-                                <td class="p-3 text-right font-bold text-slate-800">฿{{ number_format($sale->total, 2) }}</td>
+                                {{-- แก้ 2: แสดงยอดที่คืน --}}
+                                <td class="p-3 text-right font-bold text-slate-800">
+                                    ฿{{ number_format($sale->total, 2) }}
+                                    @if ((float) $sale->returned_amount > 0)
+                                        <span class="block text-xs font-normal text-amber-700">คืน -฿{{ number_format($sale->returned_amount, 2) }}</span>
+                                    @endif
+                                </td>
                             </tr>
                         @endforeach
                     </tbody>
