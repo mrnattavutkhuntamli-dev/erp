@@ -29,6 +29,12 @@
                             </div>
                         @endif
 
+                        @if ($errors->has('otp'))
+                            <div class="bg-red-100 text-red-700 p-3 mb-4 rounded text-sm text-left">
+                                {{ $errors->first('otp') }}
+                            </div>
+                        @endif
+
                         <div class="mb-4 text-left">
                             <label class="block text-sm font-medium text-slate-700 mb-2">
                                 ยืนยันรหัสผ่านเพื่อปิด 2FA <span class="text-red-500">*</span>
@@ -37,6 +43,14 @@
                                    placeholder="กรอกรหัสผ่านของคุณ"
                                    class="w-full border border-slate-300 p-3 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500">
                             <p class="text-xs text-slate-500 mt-1">เพื่อความปลอดภัย กรุณากรอกรหัสผ่านก่อนปิด 2FA</p>
+                        </div>
+
+                        <div class="mb-4 text-left">
+                            <label class="block text-sm font-medium text-slate-700 mb-2">
+                                รหัส OTP 6 หลัก <span class="text-red-500">*</span>
+                            </label>
+                            <input type="text" name="otp" required maxlength="6" inputmode="numeric" placeholder="000000"
+                                   class="w-full border border-slate-300 p-3 rounded-lg text-center text-xl tracking-[0.4em] focus:ring-2 focus:ring-red-500 focus:border-red-500">
                         </div>
 
                         <button type="submit"

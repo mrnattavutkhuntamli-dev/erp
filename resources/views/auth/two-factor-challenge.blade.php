@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ยืนยันตัวตน 2FA | Mini ERP</title>
+    <title>ยืนยันตัวตน 2FA | {{ rescue(fn () => \App\Models\Setting::get('company_name', 'Mini ERP'), 'Mini ERP') }}</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style> body { font-family: 'IBM Plex Sans Thai', sans-serif; } </style>

@@ -35,7 +35,7 @@
         {{-- กรณีที่ 1: แสดงฟอร์มรับชำระเงินใหม่ (มี $sale) --}}
         {{-- ============================================ --}}
         @if(isset($sale) && $sale)
-            @php $remaining = $sale->total - $sale->paid_amount; @endphp
+            @php $remaining = $sale->outstanding_amount; @endphp
 
             <div class="mx-auto max-w-xl overflow-hidden rounded-xl bg-white ring-1 ring-slate-200">
                 <div class="border-b border-slate-200 px-6 py-5">
@@ -48,7 +48,7 @@
                     <div class="flex justify-between"><span class="text-slate-500">บิลที่เลือก</span><span class="font-medium text-slate-900">{{ $sale->invoice_no }}</span></div>
                     <div class="flex justify-between"><span class="text-slate-500">ลูกค้า</span><span class="font-medium text-slate-900">{{ $sale->customer->name ?? 'ลูกค้าทั่วไป' }}</span></div>
                     <div class="flex justify-between"><span class="text-slate-500">ยอดรวม</span><span class="text-slate-900">฿{{ number_format($sale->total, 2) }}</span></div>
-                    <div class="flex justify-between"><span class="text-slate-500">จ่ายแล้ว</span><span class="text-slate-900">฿{{ number_format($sale->paid_amount, 2) }}</span></div>
+                    <div class="flex justify-between"><span class="text-slate-500">จ่ายแล้ว (สุทธิ)</span><span class="text-slate-900">฿{{ number_format($sale->paid_amount - $sale->refunded_amount, 2) }}</span></div>
                     <div class="flex items-center justify-between border-t border-slate-200 pt-2 mt-1">
                         <span class="font-semibold text-slate-900">ค้างชำระ</span>
                         <span class="text-lg font-semibold text-red-600">฿{{ number_format($remaining, 2) }}</span>
@@ -133,8 +133,7 @@
                             <svg class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 17l6-6 4 4 8-8M14 7h7v7"/></svg>
                         </div>
                         <div class="leading-tight">
-                            <p class="text-lg font-bold tracking-wide">AUTOPART</p>
-                            <p class="text-lg font-bold tracking-wide">ERP CO.</p>
+                            <p class="text-lg font-bold tracking-wide break-words max-w-[14rem]">{{ \App\Models\Setting::get('company_name', 'AutoPart ERP') }}</p>
                         </div>
                     </div>
                 </header>
@@ -160,12 +159,12 @@
                 <!-- ผู้รับเงิน -->
                 <div class="flex justify-between gap-6 text-sm">
                     <div class="space-y-1">
-                        <p><span class="doc-label">ผู้รับเงิน:</span> AutoPart ERP</p>
-                        <p><span class="doc-label">ที่อยู่:</span> 123 ถนนสุขุมวิท กรุงเทพฯ</p>
+                        <p><span class="doc-label">ผู้รับเงิน:</span> {{ \App\Models\Setting::get('company_name', 'AutoPart ERP') }}</p>
+                        <p><span class="doc-label">ที่อยู่:</span> {{ \App\Models\Setting::get('company_address', '-') }}</p>
                     </div>
                     <div class="space-y-1 sm:min-w-[210px]">
-                        <p class="flex justify-between gap-6"><span class="doc-label">โทร:</span> <span>02-123-4567</span></p>
-                        <p class="flex justify-between gap-6"><span class="doc-label">เลขผู้เสียภาษี:</span> <span>1234567890123</span></p>
+                        <p class="flex justify-between gap-6"><span class="doc-label">โทร:</span> <span>{{ \App\Models\Setting::get('company_phone', '-') }}</span></p>
+                        <p class="flex justify-between gap-6"><span class="doc-label">เลขผู้เสียภาษี:</span> <span>{{ \App\Models\Setting::get('company_tax_id', '-') }}</span></p>
                     </div>
                 </div>
 
@@ -222,7 +221,7 @@
                         </tr>
                         <tr>
                             <td class="border border-slate-800 bg-slate-100 px-3 py-1.5 text-right font-semibold">ค้างชำระ (บาท)</td>
-                            <td class="border border-slate-800 px-3 py-1.5 text-right">{{ number_format($sale->total - $sale->paid_amount, 2) }}-</td>
+                            <td class="border border-slate-800 px-3 py-1.5 text-right">{{ number_format($sale->outstanding_amount, 2) }}-</td>
                         </tr>
                         <tr>
                             <td class="border border-slate-800 bg-slate-100 px-3 py-2 text-right text-sm font-bold">รับชำระครั้งนี้ (บาท)</td>

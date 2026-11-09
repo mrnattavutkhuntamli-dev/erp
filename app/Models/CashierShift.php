@@ -10,7 +10,7 @@ class CashierShift extends Model
         'opened_at', 'opening_cash', 'opening_note',
         'closed_at', 'closing_cash', 'closing_note',
         'total_cash_sales', 'total_transfer_sales', 'total_card_sales',
-        'total_credit_sales', 'total_cash_receipts', 'total_expenses', 'total_sales', 'total_bills', 'status',
+        'total_credit_sales', 'total_cash_receipts', 'total_cash_refunds', 'total_expenses', 'total_sales', 'total_bills', 'status',
     ];
 
     protected $casts = [

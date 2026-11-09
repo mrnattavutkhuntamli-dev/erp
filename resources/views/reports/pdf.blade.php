@@ -127,7 +127,7 @@
 
 <body>
     <div class="header">
-        <h1>AutoPart ERP - รายงานยอดขาย</h1>
+        <h1>{{ \App\Models\Setting::get('company_name', 'AutoPart ERP') }} - รายงานยอดขาย</h1>
         <p>ช่วงวันที่: {{ \Carbon\Carbon::parse($startDate)->format('d/m/Y') }} ถึง
             {{ \Carbon\Carbon::parse($endDate)->format('d/m/Y') }}</p>
         <p>พิมพ์เมื่อ: {{ now()->format('d/m/Y H:i') }}</p>
@@ -215,7 +215,7 @@
     </table>
 
     <div style="margin-top: 30px; text-align: center; color: #999; font-size: 10px;">
-        <p>รายงานนี้สร้างโดยระบบ AutoPart ERP</p>
+        <p>รายงานนี้สร้างโดยระบบ {{ \App\Models\Setting::get('company_name', 'AutoPart ERP') }}</p>
     </div>
 </body>
 

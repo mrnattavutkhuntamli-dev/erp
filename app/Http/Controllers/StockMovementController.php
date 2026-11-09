@@ -102,8 +102,44 @@ class StockMovementController extends Controller
                 'd.note',
             ]);
 
+        // 3d. รับคืนสินค้าจากลูกค้า (เฉพาะรายการที่คืนเข้าสต็อก)
+        $saleReturns = DB::table('sale_return_items as ri')
+            ->join('sale_returns as r', 'r.id', '=', 'ri.sale_return_id')
+            ->where('ri.restock', true)
+            ->whereBetween('r.created_at', [$startDate . ' 00:00:00', $endDate . ' 23:59:59'])
+            ->select([
+                DB::raw("DATE(r.created_at) as date"),
+                'r.created_at',
+                DB::raw("'in' as type"),
+                DB::raw("'รับคืนสินค้า' as source"),
+                'r.return_no as reference',
+                'ri.product_id',
+                DB::raw('ri.quantity as quantity'),
+                'ri.stock_after',
+                'r.reason as note',
+            ]);
+
+        // 3e. รายการย้อนกลับ: ใบรับคืนที่ถูก void (ตัดสต็อกที่รับคืนออก)
+        $returnVoids = DB::table('sale_return_items as ri')
+            ->join('sale_returns as r', 'r.id', '=', 'ri.sale_return_id')
+            ->where('r.status', 'voided')
+            ->whereNotNull('r.voided_at')
+            ->where('ri.restock', true)
+            ->whereBetween('r.voided_at', [$startDate . ' 00:00:00', $endDate . ' 23:59:59'])
+            ->select([
+                DB::raw("DATE(r.voided_at) as date"),
+                'r.voided_at as created_at',
+                DB::raw("'out' as type"),
+                DB::raw("'ยกเลิกใบรับคืน (ตัดสต็อกออก)' as source"),
+                'r.return_no as reference',
+                'ri.product_id',
+                DB::raw('ri.quantity as quantity'),
+                DB::raw('NULL as stock_after'),
+                'r.void_reason as note',
+            ]);
+
         // 4. UNION ALL
-        $union = $docs->unionAll($sales)->unionAll($adjusts)->unionAll($saleVoids)->unionAll($docVoids);
+        $union = $docs->unionAll($sales)->unionAll($adjusts)->unionAll($saleVoids)->unionAll($docVoids)->unionAll($saleReturns)->unionAll($returnVoids);
 
         // 5. Query จาก UNION
         $query = DB::query()->fromSub($union, 'm')

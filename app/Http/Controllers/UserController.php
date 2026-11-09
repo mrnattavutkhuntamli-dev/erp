@@ -71,18 +71,31 @@ class UserController extends Controller
         $user->email = $validated['email'];
 
         // อัปเดตรหัสผ่านเฉพาะกรอกใหม่
-        if ($request->filled('password')) {
+        $passwordChanged = $request->filled('password');
+        if ($passwordChanged) {
             $user->password = Hash::make($validated['password']);
         }
 
-        return \Illuminate\Support\Facades\DB::transaction(function () use ($user, $validated) {
+        // เปลี่ยน role ต้องรู้ก่อน sync (เพื่อล้าง session เดิมที่ถือสิทธิ์เก่า)
+        $roleChanged = ! $user->hasRole($validated['role']);
+
+        \Illuminate\Support\Facades\DB::transaction(function () use ($user, $validated) {
             $user->save();
 
             // อัปเดต Role
             $user->syncRoles([$validated['role']]);
-
-            return redirect()->route('users.index')->with('success', 'อัปเดตข้อมูลพนักงานสำเร็จ!');
         });
+
+        // เปลี่ยนรหัสผ่าน/role แล้ว ให้ session เดิมของผู้ใช้คนนั้นหมดอายุ
+        // (ถ้าแก้บัญชีของตัวเอง คง session ปัจจุบันไว้)
+        if ($passwordChanged || $roleChanged) {
+            \App\Support\Sessions::forgetFor(
+                $user->id,
+                $user->id === auth()->id() ? $request->session()->getId() : null
+            );
+        }
+
+        return redirect()->route('users.index')->with('success', 'อัปเดตข้อมูลพนักงานสำเร็จ!');
     }
 
     // 6. เปิด/ปิดการใช้งานบัญชี (ใช้กับพนักงานที่ลาออกแต่มีประวัติบิล/กะ จึงลบไม่ได้)
@@ -136,12 +149,29 @@ class UserController extends Controller
             return redirect()->route('users.index')->with('error', 'ไม่สามารถลบ Admin คนสุดท้ายได้');
         }
 
-        if (\App\Models\Sale::where('user_id', $user->id)->exists()
-            || \App\Models\CashierShift::where('user_id', $user->id)->exists()) {
-            return redirect()->route('users.index')->with('error', 'พนักงานคนนี้มีประวัติการใช้งานแล้ว ไม่สามารถลบได้');
+        // มีประวัติในตารางใดตารางหนึ่งแล้ว ห้ามลบ (ให้ใช้ปิดใช้งานบัญชีแทน)
+        $hasHistory = collect([
+            'sales', 'cashier_shifts', 'receipts', 'expenses', 'sale_returns',
+            'stock_documents', 'stock_adjustments', 'purchase_orders', 'quotations',
+        ])->contains(fn ($table) => \Illuminate\Support\Facades\DB::table($table)->where('user_id', $user->id)->exists());
+
+        $historyError = 'พนักงานคนนี้มีประวัติการใช้งานแล้ว ไม่สามารถลบได้ (ใช้ปิดการใช้งานบัญชีแทน)';
+
+        if ($hasHistory) {
+            return redirect()->route('users.index')->with('error', $historyError);
         }
 
-        $user->delete();
+        try {
+            $user->delete();
+        } catch (\Illuminate\Database\QueryException $e) {
+            // ยังมี FK อื่นอ้างถึง (เช่น ผู้ยกเลิกเอกสาร) → แจ้งแทนการขึ้น error 500
+            if ((string) $e->getCode() === '23000') {
+                return redirect()->route('users.index')->with('error', $historyError);
+            }
+
+            throw $e;
+        }
+
         return redirect()->route('users.index')->with('success', 'ลบพนักงานสำเร็จ!');
     }
 }

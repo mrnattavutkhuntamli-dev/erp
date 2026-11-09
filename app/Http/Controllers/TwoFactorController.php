@@ -6,6 +6,7 @@ use BaconQrCode\Renderer\Image\SvgImageBackEnd;
 use BaconQrCode\Renderer\RendererStyle\RendererStyle;
 use BaconQrCode\Writer;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\RateLimiter;
 use PragmaRX\Google2FA\Google2FA;
 
 class TwoFactorController extends Controller
@@ -15,6 +16,11 @@ class TwoFactorController extends Controller
     {
         $user      = auth()->user();
         $google2fa = new Google2FA();
+
+        // เปิด 2FA อยู่แล้ว: ไม่สร้าง/แสดง QR ของ secret เดิมซ้ำ
+        if ($user->google2fa_enabled) {
+            return view('profile.two-factor', ['qrCodeSvg' => null, 'user' => $user]);
+        }
 
         // ถ้าผู้ใช้ยังไม่มี secret ให้สร้างใหม่
         if (empty($user->google2fa_secret)) {
@@ -49,17 +55,29 @@ class TwoFactorController extends Controller
 
         $user      = auth()->user();
         $google2fa = new Google2FA();
+        $key       = '2fa-enable:' . $user->id;
 
-        // ตรวจสอบรหัส OTP ว่าถูกต้องหรือไม่
-        $valid = $google2fa->verifyKey($user->google2fa_secret, $request->otp);
+        // จำกัด 5 ครั้ง/นาที กันเดารหัส 6 หลัก
+        if (RateLimiter::tooManyAttempts($key, 5)) {
+            return back()->withErrors(['otp' => 'ลองผิดหลายครั้งเกินไป กรุณารอ ' . RateLimiter::availableIn($key) . ' วินาที']);
+        }
 
-        if ($valid) {
+        // ตรวจสอบรหัส OTP (ปฏิเสธรหัสที่เคยใช้แล้ว เหมือนหน้ายืนยันตอนล็อกอิน)
+        $ts = $google2fa->verifyKeyNewer(
+            $user->google2fa_secret, $request->otp, cache()->get('2fa-last-ts:' . $user->id)
+        );
+
+        if ($ts !== false) {
+            RateLimiter::clear($key);
+            cache()->put('2fa-last-ts:' . $user->id, $ts, now()->addMinutes(5));
             $user->google2fa_enabled = true;
             $user->save();
             session(['2fa_verified' => true]);
 
             return redirect()->route('profile.edit')->with('status', 'เปิดใช้งาน 2FA สำเร็จ!');
         }
+
+        RateLimiter::hit($key, 60);
 
         return back()->withErrors(['otp' => 'รหัส OTP ไม่ถูกต้อง กรุณาลองใหม่']);
     }
@@ -69,14 +87,36 @@ class TwoFactorController extends Controller
     {
         $request->validate([
             'password' => 'required',
+            'otp'      => 'required|digits:6',
         ]);
 
         $user = auth()->user();
 
-        // ✅ ตรวจสอบรหัสผ่านก่อนปิด 2FA
+        // ตรวจสอบรหัสผ่านก่อนปิด 2FA
         if (! \Hash::check($request->password, $user->password)) {
             return back()->withErrors(['password' => 'รหัสผ่านไม่ถูกต้อง']);
         }
+
+        // ต้องยืนยัน OTP ด้วย (จำกัด 5 ครั้ง/นาที และปฏิเสธรหัสที่เคยใช้แล้ว)
+        $google2fa = new Google2FA();
+        $key       = '2fa-disable:' . $user->id;
+
+        if (RateLimiter::tooManyAttempts($key, 5)) {
+            return back()->withErrors(['otp' => 'ลองผิดหลายครั้งเกินไป กรุณารอ ' . RateLimiter::availableIn($key) . ' วินาที']);
+        }
+
+        $ts = $google2fa->verifyKeyNewer(
+            $user->google2fa_secret, $request->otp, cache()->get('2fa-last-ts:' . $user->id)
+        );
+
+        if ($ts === false) {
+            RateLimiter::hit($key, 60);
+
+            return back()->withErrors(['otp' => 'รหัส OTP ไม่ถูกต้อง กรุณาลองใหม่']);
+        }
+
+        RateLimiter::clear($key);
+        cache()->put('2fa-last-ts:' . $user->id, $ts, now()->addMinutes(5));
 
         $user->google2fa_enabled = false;
         $user->google2fa_secret  = null;

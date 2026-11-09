@@ -121,6 +121,6 @@
         </tbody>
     </table>
 
-    <div class="foot">รายงานนี้สร้างโดยระบบ AutoPart ERP</div>
+    <div class="foot">รายงานนี้สร้างโดยระบบ {{ \App\Models\Setting::get('company_name', 'AutoPart ERP') }}</div>
 </body>
 </html>

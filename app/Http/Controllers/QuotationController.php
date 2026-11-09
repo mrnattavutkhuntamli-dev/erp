@@ -46,7 +46,7 @@ class QuotationController extends Controller
             'note'               => 'nullable|string',
             'items'              => 'required|array|min:1',
             'items.*.product_id' => 'required|exists:products,id|distinct',
-            'items.*.quantity'   => 'required|integer|min:1',
+            'items.*.quantity'   => 'required|integer|min:1|max:999999',
             'items.*.price'      => 'required|numeric|min:0|max:99999999.99|decimal:0,2',
         ]);
 
@@ -56,6 +56,9 @@ class QuotationController extends Controller
                 $subtotalCents = collect($validated['items'])
                     ->sum(fn ($i) => Money::toCents($i['price']) * (int) $i['quantity']);
                 $discountCents = Money::toCents($validated['discount'] ?? 0);
+                if ($subtotalCents > 999999999999) {
+                    throw new \DomainException('ยอดรวมสูงเกินกว่าที่ระบบรองรับ (สูงสุด ฿9,999,999,999.99)');
+                }
                 if ($discountCents > $subtotalCents) {
                     throw new \DomainException("ส่วนลดเกินยอดรวม");
                 }

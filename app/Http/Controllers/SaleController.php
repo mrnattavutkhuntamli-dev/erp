@@ -41,9 +41,13 @@ class SaleController extends Controller
             ->latest()
             ->paginate(15);
 
-        $todaySales = Sale::whereDate('created_at', today())
+        // ยอดขายวันนี้สุทธิ = ยอดขายวันนี้ - ยอดรับคืนที่บันทึกวันนี้ (ให้ตรงกับหน้ารายงาน)
+        $todaySales = (float) Sale::whereDate('created_at', today())
             ->where('status', 'completed')
-            ->sum('total');
+            ->sum('total')
+            - (float) \App\Models\SaleReturn::whereDate('created_at', today())
+                ->where('status', 'completed')
+                ->sum('total_value');
 
         return view('sales.history', compact('sales', 'todaySales'));
     }
@@ -54,7 +58,7 @@ class SaleController extends Controller
             'customer_id'        => ['nullable', Rule::exists('customers', 'id')->where('is_active', true)],
             'items'              => 'required|array|min:1',
             'items.*.product_id' => 'required|exists:products,id',
-            'items.*.quantity'   => 'required|integer|min:1',
+            'items.*.quantity'   => 'required|integer|min:1|max:999999',
             'discount'           => 'nullable|numeric|min:0',
             'payment_method'     => 'required|in:cash,transfer,credit_card,credit',
             'received_amount'    => 'nullable|numeric|min:0',
@@ -125,6 +129,9 @@ class SaleController extends Controller
 
                 $discountCents = Money::toCents($validated['discount'] ?? 0);
 
+                if ($subtotalCents > 999999999999) {
+                    throw new \DomainException('ยอดรวมสูงเกินกว่าที่ระบบรองรับ (สูงสุด ฿9,999,999,999.99)');
+                }
                 if ($discountCents > $subtotalCents) {
                     throw new \DomainException(
                         'ส่วนลด (฿' . Money::format($discountCents) . ') เกินยอดรวม (฿' . Money::format($subtotalCents) . ')'
@@ -153,7 +160,11 @@ class SaleController extends Controller
                     $receivedCents = 0;
                     $changeCents   = 0;
                 } else {
-                    $receivedCents = Money::toCents($validated['received_amount'] ?? 0);
+                    // เงินสดต้องระบุยอดรับมา; โอน/บัตร ถ้าไม่ส่งมาให้ถือว่าชำระครบพอดี
+                    $receivedCents = Money::toCents(
+                        $validated['received_amount']
+                            ?? ($validated['payment_method'] === 'cash' ? 0 : Money::fromCents($totalCents))
+                    );
                     $changeCents   = $receivedCents - $totalCents;
 
                     if ($changeCents < 0) {

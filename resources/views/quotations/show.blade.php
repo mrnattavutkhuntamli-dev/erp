@@ -79,8 +79,7 @@
                         <svg class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 17l6-6 4 4 8-8M14 7h7v7"/></svg>
                     </div>
                     <div class="leading-tight">
-                        <p class="text-lg font-bold tracking-wide">AUTOPART</p>
-                        <p class="text-lg font-bold tracking-wide">ERP CO.</p>
+                        <p class="text-lg font-bold tracking-wide break-words max-w-[14rem]">{{ \App\Models\Setting::get('company_name', 'AutoPart ERP') }}</p>
                     </div>
                 </div>
             </header>
@@ -109,12 +108,12 @@
             <!-- ผู้เสนอราคา -->
             <div class="flex justify-between gap-6 text-sm">
                 <div class="space-y-1">
-                    <p><span class="doc-label">ผู้เสนอราคา:</span> AutoPart ERP - ร้านขายอะไหล่รถยนต์ครบวงจร</p>
-                    <p><span class="doc-label">ที่อยู่:</span> 123 ถนนสุขุมวิท กรุงเทพฯ</p>
+                    <p><span class="doc-label">ผู้เสนอราคา:</span> {{ \App\Models\Setting::get('company_name', 'AutoPart ERP') }}</p>
+                    <p><span class="doc-label">ที่อยู่:</span> {{ \App\Models\Setting::get('company_address', '-') }}</p>
                 </div>
                 <div class="space-y-1 sm:min-w-[210px]">
-                    <p class="flex justify-between gap-6"><span class="doc-label">โทร:</span> <span>02-123-4567</span></p>
-                    <p class="flex justify-between gap-6"><span class="doc-label">เลขผู้เสียภาษี:</span> <span>1234567890123</span></p>
+                    <p class="flex justify-between gap-6"><span class="doc-label">โทร:</span> <span>{{ \App\Models\Setting::get('company_phone', '-') }}</span></p>
+                    <p class="flex justify-between gap-6"><span class="doc-label">เลขผู้เสียภาษี:</span> <span>{{ \App\Models\Setting::get('company_tax_id', '-') }}</span></p>
                 </div>
             </div>
 

@@ -32,7 +32,7 @@
                             <td class="p-4 text-slate-800">{{ $sale->customer->name ?? 'ลูกค้าทั่วไป' }}</td>
                             <td class="p-4 text-right text-slate-600">฿{{ number_format($sale->total, 2) }}</td>
                             <td class="p-4 text-right font-bold text-red-600">
-                                ฿{{ number_format($sale->total - $sale->paid_amount, 2) }}</td>
+                                ฿{{ number_format($sale->outstanding_amount, 2) }}</td>
                             <td class="p-4 text-center">
                                 <a href="{{ route('receipts.create-from-sale', $sale->id) }}"
                                     class="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 text-xs font-medium">

@@ -36,6 +36,16 @@ class SaleReturnController extends Controller
 
         $sale->load(['items.product', 'customer']);
         $returnedQty    = $this->returnedQtyBySaleItem($sale->id);
+
+        // คืนครบทุกรายการแล้ว ไม่ต้องเปิดฟอร์ม (ปุ่มในหน้าประวัติก็ซ่อนอยู่แล้ว)
+        $allReturned = $sale->items->every(
+            fn ($it) => (int) ($returnedQty[$it->id] ?? 0) >= (int) $it->quantity
+        );
+        if ($allReturned) {
+            return redirect()->route('sales.show', $sale->id)
+                ->with('error', 'บิลนี้รับคืนสินค้าครบทุกรายการแล้ว');
+        }
+
         $idempotencyKey = (string) Str::uuid();
 
         return view('sale-returns.create', compact('sale', 'returnedQty', 'idempotencyKey'));
@@ -226,6 +236,86 @@ class SaleReturnController extends Controller
             report($e);
 
             return back()->with('error', 'เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง')->withInput();
+        }
+    }
+
+    /**
+     * ยกเลิกใบรับคืน: ตัดสต็อกที่เคยรับคืนเข้า (เฉพาะรายการที่ติ๊กคืนเข้าสต็อก) และย้อนยอดรับคืน/คืนเงินในบิล
+     */
+    public function destroy(Request $request, SaleReturn $saleReturn)
+    {
+        $validated = $request->validate([
+            'void_reason' => 'required|string|max:500',
+        ]);
+
+        try {
+            return DB::transaction(function () use ($saleReturn, $validated) {
+                // ล็อกบิลก่อน แล้วค่อยล็อกใบรับคืน (ลำดับเดียวกับตอนบันทึกรับคืน)
+                $sale   = Sale::lockForUpdate()->findOrFail($saleReturn->sale_id);
+                $return = SaleReturn::lockForUpdate()->findOrFail($saleReturn->id);
+
+                if ($return->status === 'voided') {
+                    throw new \DomainException('ใบรับคืนนี้ถูกยกเลิกไปแล้ว');
+                }
+
+                // คืนเงินสดในกะที่ปิดแล้ว ห้ามยกเลิก (ยอดปิดกะถูกบันทึกไปแล้ว)
+                if ($return->refund_method === 'cash' && (float) $return->refund_amount > 0) {
+                    $shift = $return->cashier_shift_id
+                        ? CashierShift::find($return->cashier_shift_id)
+                        : CashierShift::closedCovering((int) $return->user_id, $return->created_at);
+
+                    if ($shift && $shift->isClosed()) {
+                        throw new \DomainException(
+                            'ไม่สามารถยกเลิกใบรับคืนที่คืนเงินสดในกะที่ปิดแล้วได้ (กะ#' . $shift->id . ' ปิดเมื่อ '
+                            . optional($shift->closed_at)->format('d/m/Y H:i') . ')'
+                        );
+                    }
+                }
+
+                // ตัดสต็อกที่เคยรับคืนเข้า (เรียงตาม product_id กัน deadlock)
+                $items = $return->items()->where('restock', true)->orderBy('product_id')->get();
+                foreach ($items as $item) {
+                    $product = Product::lockForUpdate()->findOrFail($item->product_id);
+
+                    if ($product->stock < $item->quantity) {
+                        throw new \DomainException(
+                            "ไม่สามารถยกเลิกได้ สินค้า '{$product->name}' ถูกใช้ไปแล้ว (สต็อกจะติดลบ)"
+                        );
+                    }
+
+                    $product->decrement('stock', $item->quantity);
+                }
+
+                // ย้อนยอดรับคืน/คืนเงินสะสมของบิล แล้วคำนวณสถานะการชำระใหม่ (สูตรเดียวกับตอนบันทึกรับคืน)
+                $totalCents   = Money::toCents($sale->total);
+                $paidCents    = Money::toCents($sale->paid_amount);
+                $newReturned  = max(0, Money::toCents($sale->returned_amount) - Money::toCents($return->total_value));
+                $newRefunded  = max(0, Money::toCents($sale->refunded_amount) - Money::toCents($return->refund_amount));
+                $netPaid      = $paidCents - $newRefunded;
+                $outstanding  = $totalCents - $newReturned - $netPaid;
+
+                $sale->update([
+                    'returned_amount' => Money::fromCents($newReturned),
+                    'refunded_amount' => Money::fromCents($newRefunded),
+                    'payment_status'  => $outstanding <= 0 ? 'paid' : ($netPaid > 0 ? 'partial' : 'unpaid'),
+                ]);
+
+                $return->update([
+                    'status'      => 'voided',
+                    'voided_at'   => now(),
+                    'voided_by'   => auth()->id(),
+                    'void_reason' => $validated['void_reason'],
+                ]);
+
+                return redirect()->route('sale-returns.show', $return->id)
+                    ->with('success', 'ยกเลิกใบรับคืน ' . $return->return_no . ' สำเร็จ');
+            });
+        } catch (\DomainException $e) {
+            return back()->with('error', $e->getMessage());
+        } catch (\Throwable $e) {
+            report($e);
+
+            return back()->with('error', 'เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง');
         }
     }
 

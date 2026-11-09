@@ -132,6 +132,9 @@
                                     @elseif ($sale->payment_method == 'transfer')
                                         <span
                                             class="inline-flex rounded-full bg-sky-100 px-2.5 py-0.5 text-xs font-medium text-sky-700">โอนเงิน</span>
+                                    @elseif ($sale->payment_method == 'credit')
+                                        <span
+                                            class="inline-flex rounded-full bg-orange-100 px-2.5 py-0.5 text-xs font-medium text-orange-700">ขายเชื่อ</span>
                                     @else
                                         <span
                                             class="inline-flex rounded-full bg-violet-100 px-2.5 py-0.5 text-xs font-medium text-violet-700">บัตรเครดิต</span>

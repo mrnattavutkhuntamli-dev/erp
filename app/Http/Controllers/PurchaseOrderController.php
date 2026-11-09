@@ -9,6 +9,7 @@ use App\Support\Money;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 
 class PurchaseOrderController extends Controller
 {
@@ -39,13 +40,13 @@ class PurchaseOrderController extends Controller
     {
         // 1. Validate ข้อมูลการสั่งซื้อ
         $validated = $request->validate([
-            'supplier_id'        => 'required|exists:suppliers,id',
+            'supplier_id'        => ['required', Rule::exists('suppliers', 'id')->where('is_active', true)],
             'order_date'         => 'required|date',
             'expected_date'      => 'nullable|date|after_or_equal:order_date',
             'note'               => 'nullable|string',
             'items'              => 'required|array|min:1',
-            'items.*.product_id' => 'required|exists:products,id|distinct', // ป้องกันสินค้าซ้ำในใบเดียวกัน
-            'items.*.quantity'   => 'required|integer|min:1',
+            'items.*.product_id' => ['required', 'distinct', Rule::exists('products', 'id')->where('is_active', true)], // ป้องกันสินค้าซ้ำในใบเดียวกัน + ต้องเป็นสินค้าที่ใช้งานอยู่
+            'items.*.quantity'   => 'required|integer|min:1|max:999999',
             'items.*.unit_cost'  => 'required|numeric|min:0|max:99999999.99|decimal:0,2',
         ]);
 
@@ -57,6 +58,9 @@ class PurchaseOrderController extends Controller
                 $totalCents = collect($validated['items'])->sum(function ($item) {
                     return Money::toCents($item['unit_cost']) * (int) $item['quantity'];
                 });
+                if ($totalCents > 999999999999) {
+                    throw new \DomainException('ยอดรวมสูงเกินกว่าที่ระบบรองรับ (สูงสุด ฿9,999,999,999.99)');
+                }
                 $totalAmount = Money::fromCents($totalCents);
 
                 // สร้างเลขที่ใบสั่งซื้ออัตโนมัติ (ตัวอย่าง: PO-20261020-A1B2)
@@ -91,6 +95,8 @@ class PurchaseOrderController extends Controller
                 return redirect()->route('purchase-orders.index')
                     ->with('success', 'สร้างใบสั่งซื้อเลขที่ ' . $poNo . ' สำเร็จเรียบร้อยแล้ว');
             });
+        } catch (\DomainException $e) {
+            return back()->with('error', $e->getMessage())->withInput();
         } catch (\Throwable $e) {
             report($e);
             return back()->with('error', 'เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง')->withInput();
@@ -184,7 +190,7 @@ class PurchaseOrderController extends Controller
     public function pay(Request $request, PurchaseOrder $purchaseOrder)
     {
         $validated = $request->validate([
-            'amount' => 'required|numeric|min:0.01|max:9999999.99',
+            'amount' => 'required|numeric|min:0.01|max:99999999.99|decimal:0,2',
         ]);
 
         try {

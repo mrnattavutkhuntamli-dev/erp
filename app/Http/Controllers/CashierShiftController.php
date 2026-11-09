@@ -6,6 +6,7 @@ use App\Models\CashierShift;
 use App\Models\Expense;
 use App\Models\Receipt;
 use App\Models\Sale;
+use App\Models\SaleReturn;
 use App\Models\ShiftSchedule;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Request;
@@ -115,9 +116,29 @@ class CashierShiftController extends Controller
             return back()->with('error', 'กะนี้ถูกปิดไปแล้ว');
         }
 
+        $closeAt = now();
+        $totals  = $this->computeTotals($cashierShift, $closeAt);
+
+        // อัปเดตข้อมูลกะ
+        $cashierShift->update($totals + [
+            'closed_at'    => $closeAt,
+            'closing_cash' => $validated['closing_cash'],
+            'closing_note' => $validated['closing_note'] ?? null,
+            'status'       => 'closed',
+        ]);
+
+        return redirect()->route('cashier-shifts.show', $cashierShift->id)
+            ->with('success', 'ปิดกะสำเร็จ!');
+        });
+    }
+
+    /**
+     * คำนวณยอดสรุปของกะ ณ เวลา $closeAt (ใช้ร่วมกันทั้งตอนปิดกะและตอนดูกะที่ยังเปิดอยู่)
+     */
+    private function computeTotals(CashierShift $cashierShift, $closeAt): array
+    {
         // คำนวณยอดขายจาก Sales ในช่วงเวลากะ
         // ผูกตาม cashier_shift_id เป็นหลัก; บิลเก่าที่ไม่ได้ผูกกะ (null) ใช้ช่วงเวลา+ผู้ใช้แทน
-        $closeAt = now();
         $sales = Sale::where('status', 'completed')
             ->where(function ($q) use ($cashierShift, $closeAt) {
                 $q->where('cashier_shift_id', $cashierShift->id)
@@ -155,25 +176,30 @@ class CashierShiftController extends Controller
             })
             ->sum('amount');
 
-        // อัปเดตข้อมูลกะ
-        $cashierShift->update([
-            'closed_at'            => $closeAt,
-            'closing_cash'         => $validated['closing_cash'],
-            'closing_note'         => $validated['closing_note'] ?? null,
+        // เงินสดที่คืนให้ลูกค้า (ใบรับคืนสินค้าที่คืนเป็นเงินสด) ระหว่างกะ — ต้องหักออกจากเงินในลิ้นชัก
+        $cashRefunds = SaleReturn::where('status', 'completed')
+            ->where('refund_method', 'cash')
+            ->where(function ($q) use ($cashierShift, $closeAt) {
+                $q->where('cashier_shift_id', $cashierShift->id)
+                  ->orWhere(function ($q2) use ($cashierShift, $closeAt) {
+                      $q2->whereNull('cashier_shift_id')
+                         ->where('user_id', $cashierShift->user_id)
+                         ->whereBetween('created_at', [$cashierShift->opened_at, $closeAt]);
+                  });
+            })
+            ->sum('refund_amount');
+
+        return [
             'total_cash_sales'     => $cashSales,
             'total_transfer_sales' => $transferSales,
             'total_card_sales'     => $cardSales,
-            'total_credit_sales'   => $creditSales, // ✅ เพิ่ม
+            'total_credit_sales'   => $creditSales,
             'total_cash_receipts'  => $cashReceipts,
+            'total_cash_refunds'   => $cashRefunds,
             'total_expenses'       => $totalExpenses,
             'total_sales'          => $totalSales,
             'total_bills'          => $sales->count(),
-            'status'               => 'closed',
-        ]);
-
-        return redirect()->route('cashier-shifts.show', $cashierShift->id)
-            ->with('success', 'ปิดกะสำเร็จ!');
-        });
+        ];
     }
 
     /**
@@ -187,8 +213,13 @@ class CashierShiftController extends Controller
 
         $cashierShift->load('user');
 
+        // กะที่ยังเปิดอยู่: คำนวณยอดสดจนถึงตอนนี้ (แสดงผลอย่างเดียว ไม่บันทึกลง DB)
+        if ($cashierShift->status === 'open') {
+            $cashierShift->forceFill($this->computeTotals($cashierShift, now()));
+        }
+
         // คำนวณ "เงินที่ควรมีในลิ้นชัก"
-        $expectedCash = $cashierShift->opening_cash + $cashierShift->total_cash_sales + $cashierShift->total_cash_receipts - $cashierShift->total_expenses;
+        $expectedCash = $cashierShift->opening_cash + $cashierShift->total_cash_sales + $cashierShift->total_cash_receipts - $cashierShift->total_cash_refunds - $cashierShift->total_expenses;
         $difference = $cashierShift->closing_cash - $expectedCash;
 
         return view('cashier-shifts.show', compact('cashierShift', 'expectedCash', 'difference'));

@@ -142,7 +142,7 @@
                     $visibleCount = 0;
                     foreach ($items as $item) {
                         $permission = $item[4] ?? null;
-                        if (!$permission || auth()->user()->can($permission)) {
+                        if (!$permission || auth()->user()->canAny((array) $permission)) {
                             $visibleCount++;
                         }
                     }
@@ -162,7 +162,7 @@
                                     $permission = $item[4] ?? null;
                                 @endphp
 
-                                @if (!$permission || auth()->user()->can($permission))
+                                @if (!$permission || auth()->user()->canAny((array) $permission))
                                     @php $active = request()->routeIs($pattern); @endphp
                                     <a href="{{ route($routeName) }}"
                                        @if ($active) aria-current="page" @endif

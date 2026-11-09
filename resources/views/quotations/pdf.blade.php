@@ -66,10 +66,9 @@
             <td class="text-right">
                 <table style="width:auto; margin-left:auto;">
                     <tr>
-                        <td style="padding-right:8px;"><span class="logo-box">A</span></td>
+                        <td style="padding-right:8px;"><span class="logo-box">{{ mb_strtoupper(mb_substr(\App\Models\Setting::get('company_name', 'AutoPart ERP'), 0, 1)) }}</span></td>
                         <td style="text-align:left;">
-                            <div class="brand">AUTOPART</div>
-                            <div class="brand">ERP CO.</div>
+                            <div class="brand">{{ \App\Models\Setting::get('company_name', 'AutoPart ERP') }}</div>
                         </td>
                     </tr>
                 </table>
@@ -105,14 +104,14 @@
     <!-- ผู้เสนอราคา -->
     <table class="info">
         <tr>
-            <td style="width:60%;"><span class="bold">ผู้เสนอราคา:</span> AutoPart ERP - ร้านขายอะไหล่รถยนต์ครบวงจร</td>
+            <td style="width:60%;"><span class="bold">ผู้เสนอราคา:</span> {{ \App\Models\Setting::get('company_name', 'AutoPart ERP') }}</td>
             <td style="width:15%;" class="bold">โทร:</td>
-            <td class="text-right">02-123-4567</td>
+            <td class="text-right">{{ \App\Models\Setting::get('company_phone', '-') }}</td>
         </tr>
         <tr>
-            <td><span class="bold">ที่อยู่:</span> 123 ถนนสุขุมวิท กรุงเทพฯ</td>
+            <td><span class="bold">ที่อยู่:</span> {{ \App\Models\Setting::get('company_address', '-') }}</td>
             <td class="bold">เลขผู้เสียภาษี:</td>
-            <td class="text-right">1234567890123</td>
+            <td class="text-right">{{ \App\Models\Setting::get('company_tax_id', '-') }}</td>
         </tr>
     </table>
 

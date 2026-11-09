@@ -28,6 +28,12 @@
             <x-text-input id="email" name="email" type="email" class="mt-1 block w-full" :value="old('email', $user->email)" required autocomplete="username" />
             <x-input-error class="mt-2" :messages="$errors->get('email')" />
 
+            <div class="mt-4">
+                <x-input-label for="profile_current_password" value="รหัสผ่านปัจจุบัน (ต้องกรอกเมื่อเปลี่ยนอีเมล)" />
+                <x-text-input id="profile_current_password" name="current_password" type="password" class="mt-1 block w-full" autocomplete="current-password" />
+                <x-input-error class="mt-2" :messages="$errors->get('current_password')" />
+            </div>
+
             @if ($user instanceof \Illuminate\Contracts\Auth\MustVerifyEmail && ! $user->hasVerifiedEmail())
                 <div>
                     <p class="text-sm mt-2 text-gray-800">

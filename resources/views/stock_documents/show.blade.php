@@ -14,9 +14,9 @@
             <!-- Header เอกสาร -->
             <div class="flex justify-between items-start border-b-2 border-gray-800 pb-6 mb-6">
                 <div>
-                    <h1 class="text-3xl font-extrabold text-gray-800 tracking-tight">🚗 AutoPart ERP</h1>
+                    <h1 class="text-3xl font-extrabold text-gray-800 tracking-tight">🚗 {{ \App\Models\Setting::get('company_name', 'AutoPart ERP') }}</h1>
                     <p class="text-gray-500 text-sm mt-1">ร้านขายอะไหล่รถยนต์ครบวงจร</p>
-                    <p class="text-gray-500 text-sm">123 ถนนสุขุมวิท กรุงเทพฯ | โทร: 02-123-4567</p>
+                    <p class="text-gray-500 text-sm">{{ \App\Models\Setting::get('company_address', '-') }} | โทร: {{ \App\Models\Setting::get('company_phone', '-') }}</p>
                 </div>
                 <div class="text-right">
                     <h2 class="text-2xl font-bold {{ $stockDocument->type == 'in' ? 'text-green-600' : 'text-red-600' }}">

@@ -53,10 +53,10 @@
                             <td class="px-4 py-3 text-right">{{ $already }}</td>
                             <td class="px-4 py-3">
                                 <input type="number" name="items[{{ $i }}][quantity]"
-                                       value="{{ old("items.$i.quantity", 0) }}"
+                                       value="{{ $left <= 0 ? 0 : old("items.$i.quantity", 0) }}"
                                        min="0" max="{{ $left }}"
-                                       @disabled($left <= 0)
-                                       class="w-full rounded-lg border-slate-300 px-3 py-1.5 text-sm focus:border-amber-500 focus:ring-amber-500 disabled:bg-slate-100">
+                                       @readonly($left <= 0)
+                                       class="w-full rounded-lg border-slate-300 px-3 py-1.5 text-sm focus:border-amber-500 focus:ring-amber-500 read-only:bg-slate-100">
                             </td>
                             <td class="px-4 py-3 text-center">
                                 <input type="hidden" name="items[{{ $i }}][restock]" value="0">

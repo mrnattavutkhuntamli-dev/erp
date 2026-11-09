@@ -48,7 +48,11 @@ class ArAgingController extends Controller
 
         foreach ($unpaidSales as $sale) {
             // คำนวณยอดค้างชำระ (ปัดเศษทศนิยม 2 ตำแหน่ง และป้องกันติดลบ)
-            $dueAmount   = round(max(0, $sale->total - $sale->paid_amount), 2);
+            // ใช้ยอดค้างจริงของบิล (หักของที่รับคืนและเงินที่คืนลูกค้าแล้ว) ให้ตรงกับหน้าใบรับเงิน
+            $dueAmount   = $sale->outstanding_amount;
+            if ($dueAmount <= 0) {
+                continue;
+            }
             // นับจาก "วันครบกำหนด" (due_date) — ถ้าเป็นบิลเก่าที่ไม่มี due_date ให้ใช้วันที่ขาย + เครดิตเทอมเริ่มต้น
             $dueDate     = $sale->due_date
                 ?? $sale->created_at->copy()->addDays((int) config('pos.credit_days'));

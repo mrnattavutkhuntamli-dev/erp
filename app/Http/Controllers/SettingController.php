@@ -7,14 +7,18 @@ use Illuminate\Support\Facades\Storage;
 
 class SettingController extends Controller
 {
+    /** ข้อมูลบริษัท: แก้ได้เฉพาะจากฟอร์มข้อมูลบริษัท ห้ามปิด/แก้ผ่านรายการตั้งค่าทั่วไป */
+    private const COMPANY_KEYS = ['company_name', 'company_address', 'company_phone', 'company_tax_id', 'company_logo'];
+
     public function index()
     {
         // 1. ดึงข้อมูลบริษัท
         $companySettings = [
             'company_name'    => Setting::get('company_name', 'AutoPart ERP'),
-            'company_address' => Setting::get('company_address', '123 ถนนสุขุมวิท กรุงเทพฯ'),
-            'company_phone'   => Setting::get('company_phone', '02-123-4567'),
-            'company_tax_id'  => Setting::get('company_tax_id', '1234567890123'),
+            // ไม่ใช้ข้อมูลตัวอย่างเป็นค่าเริ่มต้น: กดบันทึกโดยไม่แก้แล้วจะกลายเป็นข้อมูลจริงบนเอกสาร
+            'company_address' => Setting::get('company_address'),
+            'company_phone'   => Setting::get('company_phone'),
+            'company_tax_id'  => Setting::get('company_tax_id'),
             'company_logo'    => Setting::get('company_logo'),
         ];
 
@@ -77,6 +81,10 @@ class SettingController extends Controller
     // ✅ อัปเดต Setting (เปลี่ยน Value)
     public function updateCustom(Request $request, $key)
     {
+        if (in_array($key, self::COMPANY_KEYS, true)) {
+            return redirect()->route('settings.index')->with('error', 'ข้อมูลบริษัทแก้ไขได้จากฟอร์มข้อมูลบริษัทเท่านั้น');
+        }
+
         $validated = $request->validate([
             'value' => 'nullable|string',
         ]);
@@ -91,6 +99,10 @@ class SettingController extends Controller
     // ✅ สลับสถานะ เปิด/ปิด
     public function toggleActive($key)
     {
+        if (in_array($key, self::COMPANY_KEYS, true)) {
+            return redirect()->route('settings.index')->with('error', 'ไม่สามารถปิดการใช้งานข้อมูลบริษัทได้');
+        }
+
         $setting = Setting::where('key', $key)->firstOrFail();
         $setting->update(['is_active' => ! $setting->is_active]);
         cache()->forget('setting.' . $key);
@@ -101,8 +113,7 @@ class SettingController extends Controller
     // ✅ ลบ Setting
     public function destroy($key)
     {
-        $protectedKeys = ['company_name', 'company_address', 'company_phone', 'company_tax_id', 'company_logo'];
-        if (in_array($key, $protectedKeys)) {
+        if (in_array($key, self::COMPANY_KEYS, true)) {
             return redirect()->route('settings.index')->with('error', 'ไม่สามารถลบข้อมูลบริษัทได้');
         }
 

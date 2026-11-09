@@ -4,7 +4,7 @@
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="csrf-token" content="{{ csrf_token() }}">
-        <title>{{ config('app.name', 'Mini ERP') }}</title>
+        <title>{{ rescue(fn () => \App\Models\Setting::get('company_name', 'Mini ERP'), 'Mini ERP') }}</title>
         <link rel="preconnect" href="https://fonts.bunny.net">
         <link href="https://fonts.bunny.net/css?family=figtree:400,500,600&display=swap" rel="stylesheet" />
         @vite(['resources/css/app.css', 'resources/js/app.js'])
@@ -15,7 +15,7 @@
 
             <div class="mb-6">
                 <a href="/">
-                    <h1 class="text-4xl font-extrabold text-indigo-600">🚀 Mini ERP</h1>
+                    <h1 class="text-4xl font-extrabold text-indigo-600">🚀 {{ rescue(fn () => \App\Models\Setting::get('company_name', 'Mini ERP'), 'Mini ERP') }}</h1>
                 </a>
             </div>
 
@@ -24,7 +24,7 @@
             </div>
 
             <div class="mt-8 text-sm text-gray-500">
-                &copy; {{ date('Y') }} Mini ERP System. All rights reserved.
+                &copy; {{ date('Y') }} {{ rescue(fn () => \App\Models\Setting::get('company_name', 'Mini ERP'), 'Mini ERP') }}. All rights reserved.
             </div>
         </div>
     </body>

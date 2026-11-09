@@ -190,6 +190,10 @@ Route::middleware(['auth', '2fa'])->group(function () {
         Route::post('/sales/{sale}/return', [SaleReturnController::class, 'store'])->name('sale-returns.store');
         Route::get('/sale-returns/{saleReturn}', [SaleReturnController::class, 'show'])->name('sale-returns.show');
     });
+    // ยกเลิกใบรับคืน: เฉพาะผู้มีสิทธิ์ยกเลิกบิล (admin) เหมือนการยกเลิกบิลขาย
+    Route::middleware('permission:void-sale')->group(function () {
+        Route::delete('/sale-returns/{saleReturn}', [SaleReturnController::class, 'destroy'])->name('sale-returns.destroy');
+    });
     Route::middleware('permission:view-sales')->group(function () {
         Route::get('/sales-history', [SaleController::class, 'history'])->name('sales.history');
     });

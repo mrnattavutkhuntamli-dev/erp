@@ -26,6 +26,12 @@ class ProfileUpdateRequest extends FormRequest
                 'max:255',
                 Rule::unique(User::class)->ignore($this->user()->id),
             ],
+            // เปลี่ยนอีเมลต้องยืนยันด้วยรหัสผ่านปัจจุบัน (กันคนที่ได้เครื่องที่ล็อกอินค้างไว้ยึดบัญชี)
+            'current_password' => [
+                Rule::requiredIf(fn () => mb_strtolower((string) $this->input('email')) !== mb_strtolower((string) $this->user()->email)),
+                'nullable',
+                'current_password',
+            ],
         ];
     }
 }

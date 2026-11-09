@@ -8,6 +8,7 @@ use App\Models\Supplier;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 
 class StockDocumentController extends Controller
 {
@@ -27,7 +28,7 @@ class StockDocumentController extends Controller
     {
         // ดึงสินค้าที่เปิดใช้งานอยู่มาให้เลือก
         $products  = Product::where('is_active', true)->orderBy('name')->get();
-        $suppliers = Supplier::all();
+        $suppliers = Supplier::where('is_active', true)->orderBy('name')->get();
         $customers = \App\Models\Customer::where('is_active', true)->orderBy('name')->get();
         //รีบค่า type จาก url
         $type = $request->query('type', 'in');
@@ -40,13 +41,13 @@ class StockDocumentController extends Controller
             'type'               => 'required|in:in,out',
             'date'               => 'required|date',
             'receiver_name'      => 'nullable|string|max:255',
-            'supplier_id'        => 'nullable|exists:suppliers,id',
-            'customer_id' => 'nullable|exists:customers,id',
+            'supplier_id'        => ['nullable', Rule::exists('suppliers', 'id')->where('is_active', true)],
+            'customer_id'        => ['nullable', Rule::exists('customers', 'id')->where('is_active', true)],
             'note'               => 'nullable|string',
             // ตรวจสอบรายการสินค้า (ต้องมีอย่างน้อย 1 รายการ)
             'items'              => 'required|array|min:1',
-            'items.*.product_id' => 'required|exists:products,id',
-            'items.*.quantity'   => 'required|integer|min:1',
+            'items.*.product_id' => ['required', Rule::exists('products', 'id')->where('is_active', true)],
+            'items.*.quantity'   => 'required|integer|min:1|max:999999',
         ]);
         try {
             return DB::transaction(function () use ($validated) {
@@ -59,8 +60,8 @@ class StockDocumentController extends Controller
                     'type'          => $validated['type'],
                     'date'          => $validated['date'],
                     'receiver_name' => $validated['receiver_name'] ?? null,
-                    'supplier_id'   => $validated['supplier_id'] ?? null,
-                    'customer_id'   => $validated['customer_id'] ?? null,
+                    'supplier_id'   => $validated['type'] === 'in' ? ($validated['supplier_id'] ?? null) : null,
+                    'customer_id'   => $validated['type'] === 'out' ? ($validated['customer_id'] ?? null) : null,
                     'note'          => $validated['note'] ?? null,
                     'user_id'       => auth()->id(), // พนักงานที่ล็อกอินอยู่
                 ]);
@@ -111,8 +112,8 @@ class StockDocumentController extends Controller
                 ->with('error', 'ไม่สามารถแก้ไขเอกสารที่ถูกยกเลิกแล้วได้');
         }
 
-        $suppliers = Supplier::all();
-        $customers = \App\Models\Customer::where('is_active', true)->orderBy('name')->get();
+        $suppliers = Supplier::where('is_active', true)->orWhere('id', $stockDocument->supplier_id)->orderBy('name')->get();
+        $customers = \App\Models\Customer::where('is_active', true)->orWhere('id', $stockDocument->customer_id)->orderBy('name')->get();
         return view('stock_documents.edit', compact('stockDocument', 'suppliers', 'customers'));
     }
 
@@ -125,10 +126,21 @@ class StockDocumentController extends Controller
         $validated = $request->validate([
             'date'          => 'required|date',
             'receiver_name' => 'nullable|string|max:255',
-            'supplier_id'   => 'nullable|exists:suppliers,id',
-            'customer_id' => 'nullable|exists:customers,id',
+            'supplier_id'   => ['nullable', Rule::exists('suppliers', 'id')->where(
+                fn ($q) => $q->where('is_active', true)->orWhere('id', $stockDocument->supplier_id)
+            )],
+            'customer_id'   => ['nullable', Rule::exists('customers', 'id')->where(
+                fn ($q) => $q->where('is_active', true)->orWhere('id', $stockDocument->customer_id)
+            )],
             'note'          => 'nullable|string',
         ]);
+
+        // ใบรับเข้าเก็บเฉพาะซัพพลายเออร์ / ใบเบิกเก็บเฉพาะลูกค้า
+        if ($stockDocument->type === 'in') {
+            unset($validated['customer_id']);
+        } else {
+            unset($validated['supplier_id']);
+        }
 
         $stockDocument->update($validated);
 

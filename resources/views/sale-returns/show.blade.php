@@ -37,7 +37,10 @@
             <div class="flex justify-between sm:block"><dt class="text-slate-500">พนักงานที่บันทึก</dt><dd class="text-slate-900">{{ $return->user->name ?? '-' }}</dd></div>
             <div class="sm:col-span-2"><dt class="text-slate-500">เหตุผล</dt><dd class="text-slate-900">{{ $return->reason }}</dd></div>
             @if ($voided && $return->voidedBy)
-                <div class="sm:col-span-2"><dt class="text-slate-500">ยกเลิกโดย</dt><dd class="text-red-700">{{ $return->voidedBy->name }}</dd></div>
+                <div class="sm:col-span-2"><dt class="text-slate-500">ยกเลิกโดย</dt><dd class="text-red-700">{{ $return->voidedBy->name }}@if ($return->voided_at) เมื่อ {{ $return->voided_at->format('d/m/Y H:i') }}@endif</dd></div>
+            @endif
+            @if ($voided && $return->void_reason)
+                <div class="sm:col-span-2"><dt class="text-slate-500">เหตุผลที่ยกเลิก</dt><dd class="text-red-700">{{ $return->void_reason }}</dd></div>
             @endif
         </dl>
     </div>
@@ -86,5 +89,28 @@
             </tfoot>
         </table>
     </div>
+
+    {{-- ยกเลิกใบรับคืน (เฉพาะผู้มีสิทธิ์ยกเลิกบิล) --}}
+    @if (! $voided)
+        @can('void-sale')
+            <form method="POST" action="{{ route('sale-returns.destroy', $return->id) }}"
+                  onsubmit="return confirm('ยืนยันยกเลิกใบรับคืนนี้? สต็อกที่รับคืนเข้าจะถูกตัดออก และยอดบิลจะกลับไปเหมือนก่อนรับคืน')"
+                  class="space-y-3 rounded-xl bg-white p-5 shadow-sm ring-1 ring-red-200 print:hidden">
+                @csrf
+                @method('DELETE')
+                <div class="text-sm font-semibold text-red-700">ยกเลิกใบรับคืน</div>
+                <input type="text" name="void_reason" maxlength="500" required value="{{ old('void_reason') }}"
+                       placeholder="เหตุผลที่ยกเลิก *"
+                       class="w-full rounded-lg border-slate-300 px-3 py-2 text-sm focus:border-red-500 focus:ring-red-500">
+                @error('void_reason')
+                    <p class="text-xs text-red-600">{{ $message }}</p>
+                @enderror
+                <button type="submit"
+                        class="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500">
+                    ยกเลิกใบรับคืน
+                </button>
+            </form>
+        @endcan
+    @endif
 </div>
 @endsection

@@ -40,6 +40,14 @@ class ReceiptController extends Controller
             'idempotency_key' => ['nullable', 'uuid'],
         ]);
 
+        // แคชเชียร์รับเงินสดต้องมีกะเปิด ไม่งั้นเงินสดไม่เข้ายอดกะใดเลย
+        // (ฝ่ายบัญชีที่ไม่มีสิทธิ์ขายไม่ผูกกับกะ จึงไม่ถูกบังคับ)
+        if ($validated['payment_method'] === 'cash' && $request->user()->can('create-sale')) {
+            if ($reason = CashierShift::sellBlockReason($request->user())) {
+                throw ValidationException::withMessages(['payment_method' => $reason]);
+            }
+        }
+
         try {
             return DB::transaction(function () use ($validated) {
                 $sale = Sale::lockForUpdate()->findOrFail($validated['sale_id']);

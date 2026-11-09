@@ -33,7 +33,7 @@ class StockAdjustmentController extends Controller
         $validated = $request->validate([
             'product_id' => 'required|exists:products,id',
             'type' => 'required|in:addition,subtraction',
-            'quantity' => 'required|integer|min:1',
+            'quantity' => 'required|integer|min:1|max:999999',
             'reason' => 'required|in:damaged,lost,stocktake,return,other',
             'note' => 'nullable|string',
         ]);

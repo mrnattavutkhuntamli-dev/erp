@@ -82,6 +82,15 @@ class SupplierController extends Controller
             return back()->with('error', 'ลบไม่ได้ เพราะมีใบสั่งซื้ออ้างอิงอยู่ (แนะนำให้ปิดใช้งานแทน)');
         }
 
+        // ใบรับเข้า/สินค้าอ้างซัพพลายเออร์แบบ nullOnDelete: ลบแล้วชื่อในประวัติจะหายเงียบ ๆ จึงต้องกันไว้
+        if (\Illuminate\Support\Facades\DB::table('stock_documents')->where('supplier_id', $supplier->id)->exists()) {
+            return back()->with('error', 'ลบไม่ได้ เพราะมีใบรับเข้า/ใบเบิกสินค้าอ้างอิงอยู่ (แนะนำให้ปิดใช้งานแทน)');
+        }
+
+        if (\Illuminate\Support\Facades\DB::table('products')->where('supplier_id', $supplier->id)->exists()) {
+            return back()->with('error', 'ลบไม่ได้ เพราะมีสินค้าผูกกับซัพพลายเออร์นี้อยู่ (แนะนำให้ปิดใช้งานแทน)');
+        }
+
         $supplier->delete();
         return redirect()->route('suppliers.index')->with('success', 'ลบซัพพลายเออร์สำเร็จ!');
     }
