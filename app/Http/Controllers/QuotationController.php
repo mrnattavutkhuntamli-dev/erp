@@ -148,7 +148,7 @@ class QuotationController extends Controller
     {
         $validated = $request->validate([
             'payment_method'  => 'required|in:cash,transfer,credit_card,credit',
-            'received_amount' => 'nullable|numeric|min:0',
+            'received_amount' => 'nullable|numeric|min:0|max:9999999999.99',
             'idempotency_key' => 'nullable|uuid',
         ]);
 
@@ -163,7 +163,7 @@ class QuotationController extends Controller
 
                 // กดซ้ำด้วย key เดิม → พาไปที่บิลเดิม
                 if (! empty($validated['idempotency_key'])) {
-                    $existing = Sale::where('idempotency_key', $validated['idempotency_key'])->first();
+                    $existing = Sale::where('idempotency_key', $validated['idempotency_key'])->where('user_id', auth()->id())->first();
                     if ($existing) {
                         return redirect()->route('sales.show', $existing->id)
                             ->with('success', 'รายการนี้ถูกบันทึกไปแล้ว');

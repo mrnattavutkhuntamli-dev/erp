@@ -55,7 +55,7 @@ class TwoFactorController extends Controller
 
         $user      = auth()->user();
         $google2fa = new Google2FA();
-        $key       = '2fa-enable:' . $user->id;
+        $key       = '2fa-enable:' . $user->id . '|' . $request->ip();
 
         // จำกัด 5 ครั้ง/นาที กันเดารหัส 6 หลัก
         if (RateLimiter::tooManyAttempts($key, 5)) {
@@ -99,7 +99,7 @@ class TwoFactorController extends Controller
 
         // ต้องยืนยัน OTP ด้วย (จำกัด 5 ครั้ง/นาที และปฏิเสธรหัสที่เคยใช้แล้ว)
         $google2fa = new Google2FA();
-        $key       = '2fa-disable:' . $user->id;
+        $key       = '2fa-disable:' . $user->id . '|' . $request->ip();
 
         if (RateLimiter::tooManyAttempts($key, 5)) {
             return back()->withErrors(['otp' => 'ลองผิดหลายครั้งเกินไป กรุณารอ ' . RateLimiter::availableIn($key) . ' วินาที']);
@@ -112,7 +112,7 @@ class TwoFactorController extends Controller
         if ($ts === false) {
             RateLimiter::hit($key, 60);
 
-            return back()->withErrors(['otp' => 'รหัส OTP ไม่ถูกต้อง กรุณาลองใหม่']);
+            return back()->withErrors(['otp' => 'รหัส OTP ไม่ถูกต้อง หรือเพิ่งถูกใช้ไปแล้ว (ถ้าเพิ่งล็อกอิน กรุณารอรหัสถัดไปประมาณ 30 วินาที)']);
         }
 
         RateLimiter::clear($key);

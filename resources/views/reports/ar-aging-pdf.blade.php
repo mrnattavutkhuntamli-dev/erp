@@ -99,8 +99,8 @@
             <tr>
                 <th style="width: 18%;">เลขที่บิล</th>
                 <th style="width: 14%;">วันที่ขาย / ครบกำหนด</th>
-                <th class="text-right">ยอดรวม</th>
-                <th class="text-right">ชำระแล้ว</th>
+                <th class="text-right">ยอดบิลสุทธิ (หลังรับคืน)</th>
+                <th class="text-right">ชำระแล้วสุทธิ</th>
                 <th class="text-right">ค้างชำระ</th>
                 <th class="text-center" style="width: 12%;">เกินกำหนด (วัน)</th>
             </tr>

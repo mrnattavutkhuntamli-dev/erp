@@ -66,7 +66,7 @@ class CashierShiftController extends Controller
 
         // 4. บันทึกกะใหม่
         $validated = $request->validate([
-            'opening_cash' => 'required|numeric|min:0',
+            'opening_cash' => 'required|numeric|min:0|max:9999999999.99',
             'opening_note' => 'nullable|string|max:500',
         ]);
 
@@ -105,7 +105,7 @@ class CashierShiftController extends Controller
         }
 
         $validated = $request->validate([
-            'closing_cash' => 'required|numeric|min:0',
+            'closing_cash' => 'required|numeric|min:0|max:9999999999.99',
             'closing_note' => 'nullable|string|max:500',
         ]);
 

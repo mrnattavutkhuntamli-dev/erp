@@ -80,8 +80,9 @@ class ArAgingController extends Controller
                 'invoice_no' => $sale->invoice_no,
                 'date'       => $sale->created_at->format('d/m/Y'),
                 'due_date'   => $dueDate->format('d/m/Y'),
-                'total'      => $sale->total,
-                'paid'       => $sale->paid_amount,
+                // ยอดบิลสุทธิหลังรับคืน และเงินที่จ่ายสุทธิหลังคืนเงิน → ยอดบิล − จ่าย = ค้างชำระ
+                'total'      => round((float) $sale->total - (float) $sale->returned_amount, 2),
+                'paid'       => round((float) $sale->paid_amount - (float) $sale->refunded_amount, 2),
                 'due'        => $dueAmount,
                 'days'       => $daysOverdue,
             ];

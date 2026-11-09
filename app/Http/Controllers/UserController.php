@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 use Spatie\Permission\Models\Role;
 
 class UserController extends Controller
@@ -78,6 +79,11 @@ class UserController extends Controller
 
         // เปลี่ยน role ต้องรู้ก่อน sync (เพื่อล้าง session เดิมที่ถือสิทธิ์เก่า)
         $roleChanged = ! $user->hasRole($validated['role']);
+
+        // เปลี่ยนรหัสผ่าน/role: หมุน remember_token ด้วย ไม่งั้นเครื่องที่ติ๊ก "จำฉัน" ยังเข้าได้ด้วยสิทธิ์เดิม
+        if ($passwordChanged || $roleChanged) {
+            $user->setRememberToken(Str::random(60));
+        }
 
         \Illuminate\Support\Facades\DB::transaction(function () use ($user, $validated) {
             $user->save();

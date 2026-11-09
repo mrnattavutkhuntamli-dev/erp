@@ -25,7 +25,7 @@ class TwoFactorChallengeController extends Controller
         ]);
 
         $user = auth()->user();
-        $key  = '2fa-verify:' . $user->id;
+        $key  = '2fa-verify:' . $user->id . '|' . $request->ip(); // ผูก IP ด้วย กันคนอื่นกดผิดรัว ๆ เพื่อล็อกเจ้าของบัญชี
 
         // ✅ Rate Limit: 5 ครั้ง/นาที
         if (RateLimiter::tooManyAttempts($key, 5)) {

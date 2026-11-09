@@ -159,8 +159,8 @@
                             <tr>
                                 <th class="px-5 py-2.5 text-left font-medium">เลขที่บิล</th>
                                 <th class="px-5 py-2.5 text-left font-medium">วันที่ขาย / ครบกำหนด</th>
-                                <th class="px-5 py-2.5 text-right font-medium">ยอดรวม</th>
-                                <th class="px-5 py-2.5 text-right font-medium">ชำระแล้ว</th>
+                                <th class="px-5 py-2.5 text-right font-medium">ยอดบิลสุทธิ (หลังรับคืน)</th>
+                                <th class="px-5 py-2.5 text-right font-medium">ชำระแล้วสุทธิ</th>
                                 <th class="px-5 py-2.5 text-right font-medium">ค้างชำระ</th>
                                 <th class="px-5 py-2.5 text-center font-medium">เกินกำหนด (วัน)</th>
                             </tr>

@@ -96,9 +96,9 @@ class ProductController extends Controller
             'supplier_id'  => 'nullable|exists:suppliers,id',
             'unit_id'      => 'nullable|exists:units,id',
             'brand_id'     => 'nullable|exists:brands,id',
-            'cost'         => 'required|numeric|min:0',
-            'price'        => 'required|numeric|min:0',
-            'stock'        => 'required|integer|min:0',
+            'cost'         => 'required|numeric|min:0|max:99999999.99|decimal:0,2',
+            'price'        => 'required|numeric|min:0|max:99999999.99|decimal:0,2',
+            'stock'        => 'required|integer|min:0|max:999999',
             'description'  => 'nullable|string',
             'car_models'   => 'nullable|array',       // รับ array ของรุ่นรถ
             'car_models.*' => 'exists:car_models,id', // ตรวจสอบว่า id มีจริง
@@ -201,8 +201,8 @@ class ProductController extends Controller
             'supplier_id'      => 'nullable|exists:suppliers,id',
             'unit_id'          => 'nullable|exists:units,id',
             'brand_id'         => 'nullable|exists:brands,id',
-            'cost'             => 'required|numeric|min:0',
-            'price'            => 'required|numeric|min:0',
+            'cost'             => 'required|numeric|min:0|max:99999999.99|decimal:0,2',
+            'price'            => 'required|numeric|min:0|max:99999999.99|decimal:0,2',
             // ไม่รับ 'stock' ที่นี่โดยตั้งใจ: การแก้สต็อกต้องผ่าน "ปรับปรุงสต็อก"/เอกสารสต็อก
             // เพื่อให้มีประวัติ และไม่ไปทับยอดที่เปลี่ยนไประหว่างเปิดฟอร์มค้างไว้ (lost update)
             'description'      => 'nullable|string',

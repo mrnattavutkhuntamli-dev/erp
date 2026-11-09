@@ -59,9 +59,9 @@ class SaleController extends Controller
             'items'              => 'required|array|min:1',
             'items.*.product_id' => 'required|exists:products,id',
             'items.*.quantity'   => 'required|integer|min:1|max:999999',
-            'discount'           => 'nullable|numeric|min:0',
+            'discount'           => 'nullable|numeric|min:0|max:9999999999.99',
             'payment_method'     => 'required|in:cash,transfer,credit_card,credit',
-            'received_amount'    => 'nullable|numeric|min:0',
+            'received_amount'    => 'nullable|numeric|min:0|max:9999999999.99',
             'idempotency_key'    => 'nullable|uuid',
         ]);
 
@@ -80,7 +80,7 @@ class SaleController extends Controller
             return DB::transaction(function () use ($validated) {
                 // ✅ Idempotency
                 if (! empty($validated['idempotency_key'])) {
-                    $existing = Sale::where('idempotency_key', $validated['idempotency_key'])->first();
+                    $existing = Sale::where('idempotency_key', $validated['idempotency_key'])->where('user_id', auth()->id())->first();
                     if ($existing) {
                         return response()->json([
                             'success'      => true,
@@ -225,7 +225,7 @@ class SaleController extends Controller
         } catch (UniqueConstraintViolationException $e) {
             // ชน idempotency_key → คืนบิลเดิม
             if (! empty($validated['idempotency_key'])) {
-                $existing = Sale::where('idempotency_key', $validated['idempotency_key'])->first();
+                $existing = Sale::where('idempotency_key', $validated['idempotency_key'])->where('user_id', auth()->id())->first();
                 if ($existing) {
                     return response()->json([
                         'success'      => true,
