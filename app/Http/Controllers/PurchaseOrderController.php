@@ -245,14 +245,17 @@ class PurchaseOrderController extends Controller
      */
     public function voidPayment(PurchaseOrder $purchaseOrder, PurchaseOrderPayment $payment)
     {
+        // ต้องเช็กนอก try/catch เพราะ abort() ถูก catch (\Throwable) ดักไว้จะกลายเป็น redirect แทน 404
+        // purchase_order_id ของรายการจ่ายเปลี่ยนไม่ได้ จึงเช็กก่อนเข้า transaction ได้
+        if ((int) $payment->purchase_order_id !== (int) $purchaseOrder->id) {
+            abort(404);
+        }
+
         try {
             return DB::transaction(function () use ($purchaseOrder, $payment) {
                 $po  = PurchaseOrder::lockForUpdate()->findOrFail($purchaseOrder->id);
                 $pay = PurchaseOrderPayment::lockForUpdate()->findOrFail($payment->id);
 
-                if ((int) $pay->purchase_order_id !== (int) $po->id) {
-                    abort(404);
-                }
                 if ($pay->status !== 'active') {
                     throw new \DomainException('รายการจ่ายเงินนี้ถูกยกเลิกไปแล้ว');
                 }

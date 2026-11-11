@@ -3,6 +3,7 @@ namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Database\Factories\UserFactory;
+use Illuminate\Contracts\Encryption\DecryptException;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -53,5 +54,17 @@ class User extends Authenticatable
             'is_active'         => 'boolean',
             'google2fa_secret' => 'encrypted',
         ];
+    }
+
+    /**
+     * อ่าน secret ของ 2FA แบบไม่ throw: ถ้าถอดรหัสไม่ได้ (เช่น APP_KEY เปลี่ยนหลังตั้งค่า 2FA) จะคืน null
+     */
+    public function twoFactorSecretOrNull(): ?string
+    {
+        try {
+            return $this->google2fa_secret ?: null;
+        } catch (DecryptException $e) {
+            return null;
+        }
     }
 }

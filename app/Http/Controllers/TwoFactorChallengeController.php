@@ -2,6 +2,7 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\RateLimiter;
 
 class TwoFactorChallengeController extends Controller
@@ -33,11 +34,18 @@ class TwoFactorChallengeController extends Controller
             return back()->withErrors(['otp' => "ลองผิดหลายครั้งเกินไป กรุณารอ {$seconds} วินาที"]);
         }
 
+        // secret ถอดรหัสไม่ได้ (เช่น APP_KEY เปลี่ยน) → แจ้งผู้ใช้ชัดเจนแทน 500 และไม่นับเป็นความพยายามผิด
+        $secret = $user->twoFactorSecretOrNull();
+        if ($secret === null) {
+            Log::warning('2FA secret ถอดรหัสไม่ได้หรือว่างเปล่า (ตรวจสอบว่า APP_KEY ถูกเปลี่ยนหรือไม่)', ['user_id' => $user->id]);
+            return back()->withErrors(['otp' => 'ข้อมูล 2FA ของบัญชีนี้อ่านไม่ได้ (อาจเกิดจากการเปลี่ยนค่าความปลอดภัยของระบบ) กรุณาติดต่อผู้ดูแลระบบเพื่อรีเซ็ต 2FA']);
+        }
+
         $google2fa = new \PragmaRX\Google2FA\Google2FA();
 
         // verifyKeyNewer: ปฏิเสธรหัสที่เคยใช้แล้ว (ตาม timestamp ของรหัสล่าสุด)
         $lastTs = cache()->get('2fa-last-ts:' . $user->id);
-        $ts     = $google2fa->verifyKeyNewer($user->google2fa_secret, $request->otp, $lastTs);
+        $ts     = $google2fa->verifyKeyNewer($secret, $request->otp, $lastTs);
 
         if ($ts !== false) {
             cache()->put('2fa-last-ts:' . $user->id, $ts, now()->addMinutes(5));
