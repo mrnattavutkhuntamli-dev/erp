@@ -44,6 +44,7 @@ class StockDocumentController extends Controller
             'supplier_id'        => ['nullable', Rule::exists('suppliers', 'id')->where('is_active', true)],
             'customer_id'        => ['nullable', Rule::exists('customers', 'id')->where('is_active', true)],
             'note'               => 'nullable|string',
+            'idempotency_key'    => 'nullable|string|max:64',
             // ตรวจสอบรายการสินค้า (ต้องมีอย่างน้อย 1 รายการ)
             'items'              => 'required|array|min:1',
             'items.*.product_id' => ['required', Rule::exists('products', 'id')->where('is_active', true)],
@@ -51,12 +52,22 @@ class StockDocumentController extends Controller
         ]);
         try {
             return DB::transaction(function () use ($validated) {
+                // กดซ้ำด้วย key เดิม → พาไปเอกสารเดิม ไม่ตัดสต็อกซ้ำ
+                if (! empty($validated['idempotency_key'])) {
+                    $existing = StockDocument::where('idempotency_key', $validated['idempotency_key'])->first();
+                    if ($existing) {
+                        return redirect()->route('stock-documents.show', $existing->id)
+                            ->with('success', 'เอกสาร ' . $existing->doc_no . ' ถูกบันทึกไปแล้ว');
+                    }
+                }
+
                 // สร้างเอกสารอัตโนมัติ IN-20261018-0001
                 $prefix     = $validated['type'] === 'in' ? 'IN' : 'OUT';
                 $docNo      = 'TMP-' . Str::uuid(); // เลขจริงอัปเดตจาก id ด้านล่าง (กันเลขชนกัน)
 
                 $document   = StockDocument::create([
                     'doc_no'        => $docNo,
+                    'idempotency_key' => $validated['idempotency_key'] ?? null,
                     'type'          => $validated['type'],
                     'date'          => $validated['date'],
                     'receiver_name' => $validated['receiver_name'] ?? null,
@@ -98,6 +109,17 @@ class StockDocumentController extends Controller
             });
         } catch (\DomainException $e) {
             return back()->with('error', $e->getMessage())->withInput();
+        } catch (\Illuminate\Database\UniqueConstraintViolationException $e) {
+            // กดซ้ำพร้อมกัน: อีกคำขอสร้างเอกสารด้วย key เดียวกันไปแล้ว → พาไปเอกสารนั้น
+            if (! empty($validated['idempotency_key'])) {
+                $existing = StockDocument::where('idempotency_key', $validated['idempotency_key'])->first();
+                if ($existing) {
+                    return redirect()->route('stock-documents.show', $existing->id)
+                        ->with('success', 'เอกสาร ' . $existing->doc_no . ' ถูกบันทึกไปแล้ว');
+                }
+            }
+            report($e);
+            return back()->with('error', 'เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง')->withInput();
         } catch (\Throwable $e) {
             report($e);
             return back()->with('error', 'เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง')->withInput();
@@ -174,7 +196,7 @@ class StockDocumentController extends Controller
                     if ($po && $po->status === 'received' && (float) $po->paid_amount > 0) {
                         throw new \DomainException(
                             'ไม่สามารถยกเลิกใบรับเข้านี้ได้ เพราะ PO ' . $po->po_no . ' มีการจ่ายเงินให้ซัพพลายเออร์แล้ว ฿'
-                            . number_format((float) $po->paid_amount, 2) . ' (ต้องแก้ยอดจ่ายก่อน)'
+                            . number_format((float) $po->paid_amount, 2) . ' (ต้องยกเลิกรายการจ่ายเงินในหน้า PO ก่อน)'
                         );
                     }
                 }

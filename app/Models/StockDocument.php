@@ -9,6 +9,7 @@ class StockDocument extends Model
     use HasFactory;
     protected $fillable = [
         'doc_no',
+        'idempotency_key',
         'type',
         'date',
         'supplier_id',

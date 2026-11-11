@@ -24,6 +24,7 @@
 
         <form action="{{ route('stock-documents.store') }}" method="POST">
             @csrf
+            <input type="hidden" name="idempotency_key" value="{{ old('idempotency_key', \Illuminate\Support\Str::uuid()) }}">
             <input type="hidden" name="type" value="{{ $type }}">
 
             <!-- ข้อมูลหัวเอกสาร -->

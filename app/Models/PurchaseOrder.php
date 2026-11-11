@@ -26,6 +26,11 @@ class PurchaseOrder extends Model
         return max(0, round((float) $this->total_amount - (float) $this->paid_amount, 2));
     }
 
+    public function payments()
+    {
+        return $this->hasMany(PurchaseOrderPayment::class);
+    }
+
     public function stockDocuments()
     {
         return $this->hasMany(StockDocument::class);

@@ -97,4 +97,18 @@ class CashierShift extends Model
             ->first();
     }
 
+    /**
+     * กะที่เปิดอยู่ของผู้ใช้ พร้อมล็อกแถวไว้ (ต้องเรียกใน DB::transaction)
+     * ใช้ตอนบันทึกบิลขาย เพื่อไม่ให้ชนกับการปิดกะพร้อมกัน: ถ้าปิดกะล็อกอยู่ บิลจะรอจนปิดเสร็จแล้วถูกปฏิเสธ
+     * ถ้าบิลล็อกก่อน การปิดกะจะรอและนับบิลนี้เข้ายอดกะ (ไม่มีบิลหลุดจากยอดปิดกะ)
+     */
+    public static function currentForUpdate(User $user): ?self
+    {
+        return static::where('user_id', $user->id)
+            ->where('status', 'open')
+            ->latest('opened_at')
+            ->lockForUpdate()
+            ->first();
+    }
+
 }

@@ -20,7 +20,7 @@ class BrandController extends Controller
 
     public function store(Request $request)
     {
-        $validated = $request->validate(['name' => 'required|string|max:255']);
+        $validated = $request->validate(['name' => 'required|string|max:255|unique:brands,name']);
         Brand::create($validated);
         return redirect()->route('brands.index')->with('success', 'เพิ่มยี่ห้ออะไหล่สำเร็จ!');
     }
@@ -32,7 +32,7 @@ class BrandController extends Controller
 
     public function update(Request $request, Brand $brand)
     {
-        $validated = $request->validate(['name' => 'required|string|max:255']);
+        $validated = $request->validate(['name' => 'required|string|max:255|unique:brands,name,' . $brand->id]);
         $brand->update($validated);
         return redirect()->route('brands.index')->with('success', 'อัปเดตยี่ห้ออะไหล่สำเร็จ!');
     }

@@ -106,6 +106,7 @@
                             @if($purchaseOrder->remaining_amount > 0)
                                 <form action="{{ route('purchase-orders.pay', $purchaseOrder->id) }}" method="POST" class="flex items-center gap-2">
                                     @csrf
+                                    <input type="hidden" name="idempotency_key" value="{{ \Illuminate\Support\Str::uuid() }}">
                                     <input type="number" name="amount" step="0.01" min="0.01" max="{{ $purchaseOrder->remaining_amount }}"
                                            value="{{ $purchaseOrder->remaining_amount }}" required
                                            class="w-40 rounded-lg border border-slate-300 p-2 text-right focus:ring-2 focus:ring-blue-500">
@@ -115,6 +116,32 @@
                             @endif
                         @endcan
                     </div>
+
+                    @if($purchaseOrder->payments->isNotEmpty())
+                        <div class="mt-4 border-t border-slate-200 pt-3">
+                            <p class="mb-2 text-sm font-semibold text-slate-700">ประวัติการจ่ายเงิน</p>
+                            <ul class="space-y-1 text-sm">
+                                @foreach($purchaseOrder->payments as $pay)
+                                    <li class="flex flex-wrap items-center justify-between gap-2 {{ $pay->status === 'voided' ? 'text-slate-400 line-through' : 'text-slate-700' }}">
+                                        <span>
+                                            {{ $pay->created_at->format('d/m/Y H:i') }} — ฿{{ number_format($pay->amount, 2) }}
+                                            @if($pay->user) ({{ $pay->user->name }}) @endif
+                                            @if($pay->status === 'voided') <span class="no-underline">[ยกเลิกแล้ว]</span> @endif
+                                        </span>
+                                        @can('manage-expenses')
+                                            @if($pay->status === 'active')
+                                                <form action="{{ route('purchase-orders.payments.void', [$purchaseOrder->id, $pay->id]) }}" method="POST">
+                                                    @csrf
+                                                    <button type="submit" onclick="return confirm('ยืนยันยกเลิกรายการจ่ายเงินนี้?')"
+                                                            class="text-xs font-semibold text-rose-600 hover:underline">ยกเลิกรายการ</button>
+                                                </form>
+                                            @endif
+                                        @endcan
+                                    </li>
+                                @endforeach
+                            </ul>
+                        </div>
+                    @endif
                 </div>
             @endif
 

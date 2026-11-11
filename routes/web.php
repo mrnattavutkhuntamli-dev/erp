@@ -141,6 +141,9 @@ Route::middleware(['auth', '2fa'])->group(function () {
     Route::post('/purchase-orders/{purchaseOrder}/pay', [PurchaseOrderController::class, 'pay'])
         ->middleware('permission:manage-expenses')
         ->name('purchase-orders.pay');
+    Route::post('/purchase-orders/{purchaseOrder}/payments/{payment}/void', [PurchaseOrderController::class, 'voidPayment'])
+        ->middleware('permission:manage-expenses')
+        ->name('purchase-orders.payments.void');
 
     // ✅ 5.3b: Stock Adjustments (แยกสิทธิ์จากเอกสารรับ/เบิก)
     Route::middleware('permission:adjust-stock')->group(function () {

@@ -3,6 +3,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Product;
 use App\Models\PurchaseOrder;
+use App\Models\PurchaseOrderPayment;
 use App\Models\StockDocument;
 use App\Models\Supplier;
 use App\Support\Money;
@@ -108,7 +109,7 @@ class PurchaseOrderController extends Controller
      */
     public function show(PurchaseOrder $purchaseOrder)
     {
-        $purchaseOrder->load(['items.product', 'supplier', 'user']);
+        $purchaseOrder->load(['items.product', 'supplier', 'user', 'payments.user']);
         return view('purchase-orders.show', compact('purchaseOrder'));
     }
 
@@ -190,12 +191,19 @@ class PurchaseOrderController extends Controller
     public function pay(Request $request, PurchaseOrder $purchaseOrder)
     {
         $validated = $request->validate([
-            'amount' => 'required|numeric|min:0.01|max:99999999.99|decimal:0,2',
+            'amount'          => 'required|numeric|min:0.01|max:99999999.99|decimal:0,2',
+            'idempotency_key' => 'nullable|string|max:64',
         ]);
 
         try {
             return DB::transaction(function () use ($purchaseOrder, $validated) {
                 $po = PurchaseOrder::lockForUpdate()->findOrFail($purchaseOrder->id);
+
+                // กดซ้ำ/ส่งซ้ำด้วย key เดิม → ไม่บันทึกซ้ำ
+                if (! empty($validated['idempotency_key'])
+                    && PurchaseOrderPayment::where('idempotency_key', $validated['idempotency_key'])->exists()) {
+                    return back()->with('success', 'รายการจ่ายเงินนี้ถูกบันทึกไปแล้ว');
+                }
 
                 if ($po->status !== 'received') {
                     throw new \DomainException('บันทึกการจ่ายเงินได้เฉพาะ PO ที่รับของแล้วเท่านั้น');
@@ -212,9 +220,53 @@ class PurchaseOrderController extends Controller
                     throw new \DomainException('จำนวนเงินเกินยอดค้างจ่าย (฿' . number_format($remainingSatang / 100, 2) . ')');
                 }
 
+                PurchaseOrderPayment::create([
+                    'purchase_order_id' => $po->id,
+                    'user_id'           => auth()->id(),
+                    'amount'            => Money::fromCents($paySatang),
+                    'status'            => 'active',
+                    'idempotency_key'   => $validated['idempotency_key'] ?? null,
+                ]);
+
                 $po->update(['paid_amount' => round(((float) $po->paid_amount * 100 + $paySatang) / 100, 2)]);
 
                 return back()->with('success', 'บันทึกการจ่ายเงิน ฿' . number_format($paySatang / 100, 2) . ' สำเร็จ');
+            });
+        } catch (\DomainException $e) {
+            return back()->with('error', $e->getMessage());
+        } catch (\Throwable $e) {
+            report($e);
+            return back()->with('error', 'เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง');
+        }
+    }
+
+    /**
+     * ยกเลิกรายการจ่ายเงินที่บันทึกผิด → คืนยอดค้างจ่ายของ PO (และปลดล็อกการ void ใบรับเข้า)
+     */
+    public function voidPayment(PurchaseOrder $purchaseOrder, PurchaseOrderPayment $payment)
+    {
+        try {
+            return DB::transaction(function () use ($purchaseOrder, $payment) {
+                $po  = PurchaseOrder::lockForUpdate()->findOrFail($purchaseOrder->id);
+                $pay = PurchaseOrderPayment::lockForUpdate()->findOrFail($payment->id);
+
+                if ((int) $pay->purchase_order_id !== (int) $po->id) {
+                    abort(404);
+                }
+                if ($pay->status !== 'active') {
+                    throw new \DomainException('รายการจ่ายเงินนี้ถูกยกเลิกไปแล้ว');
+                }
+
+                $newPaidSatang = (int) round((float) $po->paid_amount * 100) - (int) round((float) $pay->amount * 100);
+                $po->update(['paid_amount' => Money::fromCents(max(0, $newPaidSatang))]);
+
+                $pay->update([
+                    'status'    => 'voided',
+                    'voided_at' => now(),
+                    'voided_by' => auth()->id(),
+                ]);
+
+                return back()->with('success', 'ยกเลิกรายการจ่ายเงิน ฿' . number_format((float) $pay->amount, 2) . ' สำเร็จ');
             });
         } catch (\DomainException $e) {
             return back()->with('error', $e->getMessage());

@@ -163,7 +163,10 @@ class QuotationController extends Controller
 
                 // กดซ้ำด้วย key เดิม → พาไปที่บิลเดิม
                 if (! empty($validated['idempotency_key'])) {
-                    $existing = Sale::where('idempotency_key', $validated['idempotency_key'])->where('user_id', auth()->id())->first();
+                    $existing = Sale::where('idempotency_key', $validated['idempotency_key'])->first();
+                    if ($existing && (int) $existing->user_id !== (int) auth()->id()) {
+                        throw new \DomainException('รหัสป้องกันบันทึกซ้ำชนกับรายการของผู้ใช้อื่น กรุณารีเฟรชหน้าแล้วลองใหม่');
+                    }
                     if ($existing) {
                         return redirect()->route('sales.show', $existing->id)
                             ->with('success', 'รายการนี้ถูกบันทึกไปแล้ว');
@@ -216,7 +219,10 @@ class QuotationController extends Controller
 
                 // เลขชั่วคราว (ไม่ชน) แล้วอัปเดตจาก id จริง — เหมือน Receipt
                 // ผูกบิลกับกะที่เปิดอยู่ (เหมือน POS) เพื่อให้ยอดปิดกะและกฎห้าม void หลังปิดกะใช้ได้กับบิลนี้ด้วย
-                $currentShift = \App\Models\CashierShift::currentFor(auth()->user());
+                $currentShift = \App\Models\CashierShift::currentForUpdate(auth()->user());
+                if ($reason = \App\Models\CashierShift::sellBlockReason(auth()->user())) {
+                    throw new \DomainException($reason);
+                }
 
                 $sale = Sale::create([
                     'invoice_no'       => 'TMP-' . Str::uuid(),
@@ -260,6 +266,16 @@ class QuotationController extends Controller
             });
         } catch (\DomainException $e) {
             return back()->with('error', $e->getMessage());
+        } catch (\Illuminate\Database\UniqueConstraintViolationException $e) {
+            // ชน idempotency_key (กดซ้ำพร้อมกัน) → พาไปบิลเดิมถ้าเป็นของผู้ใช้คนเดียวกัน
+            if (! empty($validated['idempotency_key'])) {
+                $existing = Sale::where('idempotency_key', $validated['idempotency_key'])->where('user_id', auth()->id())->first();
+                if ($existing) {
+                    return redirect()->route('sales.show', $existing->id)->with('success', 'รายการนี้ถูกบันทึกไปแล้ว');
+                }
+            }
+            report($e);
+            return back()->with('error', 'ไม่สามารถแปลงเป็นใบเสร็จได้ กรุณาลองใหม่อีกครั้ง');
         } catch (\Throwable $e) {
             report($e);
             return back()->with('error', 'ไม่สามารถแปลงเป็นใบเสร็จได้ กรุณาลองใหม่อีกครั้ง');

@@ -15,7 +15,7 @@ class DatabaseSeeder extends Seeder
     {
         // รหัสผ่านเริ่มต้นอ่านจาก .env (SEED_PASSWORD) ถ้าไม่ตั้งไว้จะสุ่มใหม่ทุกครั้ง
         // และแสดงในหน้าจอ (ไม่ฝังรหัสผ่านตายตัวในโค้ดอีกต่อไป)
-        $password = 'Aa123123';
+        $password = env('SEED_PASSWORD') ?: Str::random(14);
 
         // 1. สร้าง Roles / Permissions ก่อน
         $this->call([
@@ -40,15 +40,17 @@ class DatabaseSeeder extends Seeder
         ];
 
         foreach ($accounts as [$role, $name, $email]) {
-            $user = User::create([
-                'name'     => $name,
-                'email'    => $email,
-                'password' => Hash::make($password),
-            ]);
-            $user->assignRole($role);
+            // รันซ้ำได้ (db:seed หลายรอบ): ถ้ามีอีเมลนี้อยู่แล้วจะไม่สร้างซ้ำและไม่ทับรหัสผ่านเดิม
+            $user = User::firstOrCreate(
+                ['email' => $email],
+                ['name' => $name, 'password' => Hash::make($password)]
+            );
+            if (! $user->hasRole($role)) {
+                $user->assignRole($role);
+            }
         }
 
-        $this->command?->warn("รหัสผ่านเริ่มต้นของผู้ใช้ตัวอย่างทั้งหมด: {$password}  (เปลี่ยนก่อนใช้งานจริง)");
+        $this->command?->warn("รหัสผ่านเริ่มต้นของผู้ใช้ตัวอย่างที่สร้างใหม่ทั้งหมด: {$password}  (เปลี่ยนก่อนใช้งานจริง)");
 
         // 3. รัน Seeder ที่เหลือ
         $this->call([

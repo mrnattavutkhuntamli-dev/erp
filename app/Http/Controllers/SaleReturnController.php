@@ -153,6 +153,7 @@ class SaleReturnController extends Controller
                 $netOwedAfter = $totalCents - $returnedBeforeCents - $valueCents;
                 $refundCents  = max(0, ($paidCents - $refundedBeforeCents) - $netOwedAfter);
 
+                $shift        = CashierShift::currentFor(auth()->user());
                 $refundMethod = null;
                 if ($refundCents > 0) {
                     $refundMethod = $validated['refund_method'] ?? null;
@@ -163,9 +164,19 @@ class SaleReturnController extends Controller
                     if ($refundMethod === 'cash' && ($reason = CashierShift::sellBlockReason(auth()->user()))) {
                         throw new \DomainException($reason);
                     }
-                }
 
-                $shift = CashierShift::currentFor(auth()->user());
+                    // ผู้ใช้ที่ไม่มีกะของตัวเอง (เช่น admin) คืนเงินสด → ผูกกับกะที่เปิดอยู่ เพื่อให้ยอดเงินสดในลิ้นชักถูกหักถูกต้อง
+                    if ($refundMethod === 'cash' && ! $shift && config('pos.require_open_shift')) {
+                        $openShifts = CashierShift::where('status', 'open')->lockForUpdate()->get();
+                        if ($openShifts->count() === 1) {
+                            $shift = $openShifts->first();
+                        } elseif ($openShifts->isEmpty()) {
+                            throw new \DomainException('ไม่มีกะที่เปิดอยู่ให้หักเงินสด กรุณาเปิดกะก่อนคืนเงินสด หรือเลือกคืนเป็นโอนเงิน');
+                        } else {
+                            throw new \DomainException('มีหลายกะเปิดอยู่พร้อมกัน ไม่สามารถระบุลิ้นชักที่ต้องหักเงินสดได้ กรุณาให้แคชเชียร์เจ้าของกะทำรายการ หรือเลือกคืนเป็นโอนเงิน');
+                        }
+                    }
+                }
 
                 $return = SaleReturn::create([
                     'return_no'        => 'TMP-' . Str::uuid(),

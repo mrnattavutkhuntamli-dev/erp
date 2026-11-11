@@ -20,7 +20,7 @@ class CarBrandController extends Controller
 
     public function store(Request $request)
     {
-        $validated = $request->validate(['name' => 'required|string|max:255']);
+        $validated = $request->validate(['name' => 'required|string|max:255|unique:car_brands,name']);
         CarBrand::create($validated);
         return redirect()->route('car-brands.index')->with('success', 'เพิ่มยี่ห้อรถสำเร็จ!');
     }
@@ -32,7 +32,7 @@ class CarBrandController extends Controller
 
     public function update(Request $request, CarBrand $carBrand)
     {
-        $validated = $request->validate(['name' => 'required|string|max:255']);
+        $validated = $request->validate(['name' => 'required|string|max:255|unique:car_brands,name,' . $carBrand->id]);
         $carBrand->update($validated);
         return redirect()->route('car-brands.index')->with('success', 'อัปเดตยี่ห้อรถสำเร็จ!');
     }
@@ -60,9 +60,14 @@ class CarBrandController extends Controller
     {
         $validated = $request->validate([
             'car_brand_id' => 'required|exists:car_brands,id',
-            'name'         => 'required|string|max:255',
-            'year_start'   => 'nullable|integer',
-            'year_end'     => 'nullable|integer',
+            'name'         => [
+                'required', 'string', 'max:255',
+                // ชื่อรุ่นซ้ำได้ข้ามยี่ห้อ แต่ห้ามซ้ำในยี่ห้อเดียวกัน
+                \Illuminate\Validation\Rule::unique('car_models', 'name')
+                    ->where('car_brand_id', $request->input('car_brand_id')),
+            ],
+            'year_start'   => 'nullable|integer|min:1900|max:2100',
+            'year_end'     => 'nullable|integer|min:1900|max:2100|gte:year_start',
         ]);
 
         \App\Models\CarModel::create($validated);
@@ -91,13 +96,19 @@ public function destroyCarModel($id)
 // ฟังก์ชันอัปเดตรุ่นรถ
 public function updateCarModel(Request $request, $id)
 {
+    $model = \App\Models\CarModel::findOrFail($id);
+
     $validated = $request->validate([
-        'name' => 'required|string|max:255',
-        'year_start' => 'nullable|integer',
-        'year_end' => 'nullable|integer',
+        'name' => [
+            'required', 'string', 'max:255',
+            \Illuminate\Validation\Rule::unique('car_models', 'name')
+                ->where('car_brand_id', $model->car_brand_id)
+                ->ignore($model->id),
+        ],
+        'year_start' => 'nullable|integer|min:1900|max:2100',
+        'year_end' => 'nullable|integer|min:1900|max:2100|gte:year_start',
     ]);
 
-    $model = \App\Models\CarModel::findOrFail($id);
     $model->update($validated);
 
     return redirect()->route('car-brands.index')->with('success', 'อัปเดตรุ่นรถสำเร็จ!');

@@ -80,8 +80,12 @@ class SaleController extends Controller
             return DB::transaction(function () use ($validated) {
                 // ✅ Idempotency
                 if (! empty($validated['idempotency_key'])) {
-                    $existing = Sale::where('idempotency_key', $validated['idempotency_key'])->where('user_id', auth()->id())->first();
+                    // unique index ของ idempotency_key เป็นแบบ global → ค้นหาทั้งตาราง
+                    $existing = Sale::where('idempotency_key', $validated['idempotency_key'])->first();
                     if ($existing) {
+                        if ((int) $existing->user_id !== (int) auth()->id()) {
+                            throw new \DomainException('รหัสป้องกันบันทึกซ้ำชนกับรายการของผู้ใช้อื่น กรุณารีเฟรชหน้าแล้วลองใหม่');
+                        }
                         return response()->json([
                             'success'      => true,
                             'sale_id'      => $existing->id,
@@ -174,8 +178,11 @@ class SaleController extends Controller
                     }
                 }
 
-                // ✅ ข้อ 8: ผูกบิลกับกะที่เปิดอยู่ของผู้ใช้
-                $currentShift = CashierShift::currentFor(auth()->user());
+                // ✅ ข้อ 8: ผูกบิลกับกะที่เปิดอยู่ของผู้ใช้ (ล็อกแถวกะ กันชนกับการปิดกะพร้อมกัน)
+                $currentShift = CashierShift::currentForUpdate(auth()->user());
+                if ($reason = CashierShift::sellBlockReason(auth()->user())) {
+                    throw new \DomainException($reason);
+                }
 
                 $sale = Sale::create([
                     'invoice_no'       => 'TMP-' . Str::uuid(),
@@ -226,6 +233,9 @@ class SaleController extends Controller
             // ชน idempotency_key → คืนบิลเดิม
             if (! empty($validated['idempotency_key'])) {
                 $existing = Sale::where('idempotency_key', $validated['idempotency_key'])->where('user_id', auth()->id())->first();
+                if (! $existing) {
+                    return response()->json(['success' => false, 'message' => 'รหัสป้องกันบันทึกซ้ำชนกับรายการของผู้ใช้อื่น กรุณารีเฟรชหน้าแล้วลองใหม่'], 422);
+                }
                 if ($existing) {
                     return response()->json([
                         'success'      => true,

@@ -30,18 +30,30 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>@yield('title', 'Dashboard') | {{ $companyName }}</title>
 
+    {{-- กันหน้ากะพริบ: ตั้งค่า dark mode ก่อนที่หน้าจะแสดงผล --}}
+    <script>
+        try {
+            const t = localStorage.getItem('theme');
+            if (t === 'dark' || (!t && matchMedia('(prefers-color-scheme: dark)').matches)) {
+                document.documentElement.classList.add('dark');
+            }
+        } catch (e) {}
+    </script>
+
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@400;500;600;700&family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
 
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
+            darkMode: 'class',
             theme: {
                 extend: {
                     fontFamily: {
-                        sans: ['"IBM Plex Sans Thai"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+                        sans: ['Sarabun', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+                        display: ['Kanit', 'Sarabun', 'ui-sans-serif', 'sans-serif'],
                     },
                     colors: {
                         ink: {
@@ -90,6 +102,36 @@
         body { top: 0 !important; }
         .goog-text-highlight { background: none !important; box-shadow: none !important; }
 
+        /* ===== Dark mode ===== */
+        .dark { color-scheme: dark; } /* ให้ input, select, scrollbar ของเบราว์เซอร์เป็นสีเข้มด้วย */
+        .dark .main-scroll::-webkit-scrollbar-thumb { background: #33476b; border-color: #0c1729; }
+        .dark .main-scroll::-webkit-scrollbar-thumb:hover { background: #4a6089; }
+
+        /*
+         * ทางลัดสำหรับหน้าเนื้อหาที่ยังไม่ได้ใส่ dark: ในแต่ละ view
+         * จำกัดเฉพาะใน #main-content เพื่อไม่กระทบ sidebar/header
+         * เมื่อปรับ view ใดครบแล้ว จะลบกฎเหล่านี้ทีหลังก็ได้
+         */
+        .dark #main-content .bg-white     { background-color: #1a2a47 !important; }
+        .dark #main-content .bg-slate-50  { background-color: #122038 !important; }
+        .dark #main-content .bg-slate-100 { background-color: #0c1729 !important; }
+        .dark #main-content .text-slate-900,
+        .dark #main-content .text-slate-800 { color: #f1f5f9 !important; }
+        .dark #main-content .text-slate-700,
+        .dark #main-content .text-slate-600 { color: #cbd5e1 !important; }
+        .dark #main-content .text-slate-500 { color: #94a3b8 !important; }
+        .dark #main-content .border-slate-100,
+        .dark #main-content .border-slate-200,
+        .dark #main-content .border-slate-300,
+        .dark #main-content .divide-slate-100 > :not([hidden]) ~ :not([hidden]),
+        .dark #main-content .divide-slate-200 > :not([hidden]) ~ :not([hidden]) { border-color: rgba(255,255,255,.1) !important; }
+        .dark #main-content .hover\:bg-slate-50:hover,
+        .dark #main-content .hover\:bg-slate-100:hover { background-color: rgba(255,255,255,.06) !important; }
+        .dark #main-content input:not([type="checkbox"]):not([type="radio"]),
+        .dark #main-content select,
+        .dark #main-content textarea { background-color: #122038; color: #e2e8f0; border-color: rgba(255,255,255,.15); }
+        .dark #main-content ::placeholder { color: #64748b; }
+
         @media (prefers-reduced-motion: reduce) {
             *, *::before, *::after { transition-duration: 0.01ms !important; }
         }
@@ -102,13 +144,15 @@
     </style>
 </head>
 
-<body class="bg-slate-100 font-sans text-slate-800 antialiased flex h-screen overflow-hidden print:block print:h-auto print:overflow-visible print:bg-white">
+<body class="bg-slate-100 font-sans text-slate-800 antialiased flex h-screen overflow-hidden
+             dark:bg-ink-950 dark:text-slate-200
+             print:block print:h-auto print:overflow-visible print:bg-white">
 
     <script>
         try { if (localStorage.getItem('sidebarCollapsed') === '1') document.body.classList.add('sidebar-collapsed'); } catch (e) {}
     </script>
     {{-- @include('partials.page-loader') --}}
-    <a href="#main-content" class="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-[60] focus:rounded-lg focus:bg-white focus:px-4 focus:py-2 focus:text-sm focus:shadow-lg print:hidden">ข้ามไปที่เนื้อหา</a>
+    <a href="#main-content" class="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-[60] focus:rounded-lg focus:bg-white focus:px-4 focus:py-2 focus:text-sm focus:text-slate-800 focus:shadow-lg print:hidden">ข้ามไปที่เนื้อหา</a>
 
     <!-- Overlay สำหรับมือถือ (ซ่อนเวลาพิมพ์) -->
     <div id="sidebar-overlay" onclick="toggleSidebar()"
@@ -118,7 +162,8 @@
     <aside id="sidebar"
            class="fixed inset-y-0 left-0 z-40 w-64 -translate-x-full transition-transform duration-200 shadow-2xl
                   lg:static lg:translate-x-0 lg:shadow-none
-                  bg-ink-900 text-slate-300 flex-shrink-0 flex flex-col print:hidden">
+                  bg-ink-900 text-slate-300 flex-shrink-0 flex flex-col
+                  dark:bg-ink-950 dark:border-r dark:border-white/10 print:hidden">
 
         <!-- โลโก้ + ชื่อร้าน -->
         <div class="h-16 px-4 flex items-center gap-3 border-b border-white/10">
@@ -126,9 +171,9 @@
                 <img src="{{ asset('storage/logo/' . $companyLogo) }}"
                      alt="โลโก้ {{ $companyName }}" class="h-9 w-9 object-contain rounded-lg bg-white p-1 flex-shrink-0">
             @else
-                <div class="h-9 w-9 rounded-lg bg-amber-500 text-ink-950 flex items-center justify-center font-bold text-lg notranslate flex-shrink-0" translate="no">{{ mb_strtoupper(mb_substr($companyName, 0, 1)) }}</div>
+                <div class="h-9 w-9 rounded-lg bg-amber-500 text-ink-950 flex items-center justify-center font-display font-bold text-lg notranslate flex-shrink-0" translate="no">{{ mb_strtoupper(mb_substr($companyName, 0, 1)) }}</div>
             @endif
-            <span class="min-w-0 flex-1 text-base font-semibold text-white tracking-tight truncate notranslate" translate="no">{{ $companyName }}</span>
+            <span class="min-w-0 flex-1 font-display text-base font-semibold text-white tracking-tight truncate notranslate" translate="no">{{ $companyName }}</span>
             <button type="button" onclick="toggleSidebar()" class="lg:hidden rounded-lg p-1.5 text-slate-400 hover:bg-white/10 hover:text-white flex-shrink-0" aria-label="ปิดเมนู">
                 <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
             </button>
@@ -209,14 +254,19 @@
     <div class="flex-1 min-w-0 flex flex-col overflow-hidden print:block print:overflow-visible">
 
         <!-- Header (ซ่อนเวลาพิมพ์) -->
-        <header class="h-16 flex-shrink-0 bg-white/90 backdrop-blur border-b border-slate-200 flex items-center gap-3 px-4 sm:px-6 print:hidden">
-            <button type="button" onclick="toggleSidebar()" class="-ml-2 p-2 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 shrink-0" aria-label="เปิด/ซ่อนเมนู" title="เปิด/ซ่อนเมนู">
+        <header class="h-16 flex-shrink-0 bg-white/90 backdrop-blur border-b border-slate-200 flex items-center gap-3 px-4 sm:px-6
+                       dark:bg-ink-900/90 dark:border-white/10 print:hidden">
+            <button type="button" onclick="toggleSidebar()"
+                    class="-ml-2 p-2 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-800
+                           dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-white
+                           focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 shrink-0"
+                    aria-label="เปิด/ซ่อนเมนู" title="เปิด/ซ่อนเมนู">
                 <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"/></svg>
             </button>
 
-            <span class="h-6 w-px bg-slate-200 shrink-0 hidden sm:block"></span>
+            <span class="h-6 w-px bg-slate-200 dark:bg-white/10 shrink-0 hidden sm:block"></span>
 
-            <h2 class="text-lg sm:text-xl font-semibold text-slate-900 tracking-tight truncate shrink-0 max-w-[9rem] sm:max-w-xs">@yield('title', 'Dashboard')</h2>
+            <h2 class="font-display text-lg sm:text-xl font-semibold text-slate-900 dark:text-white tracking-tight truncate shrink-0 max-w-[9rem] sm:max-w-xs">@yield('title', 'Dashboard')</h2>
 
             {{-- แถบปุ่มลัด: เลื่อนซ้ายขวาได้ (ล้อเมาส์ / ลากนิ้ว / แถบเลื่อนของทัชแพด) --}}
             <div id="header-actions" class="header-scroll min-w-0 flex-1 overflow-x-auto overscroll-x-contain">
@@ -225,6 +275,17 @@
                 </div>
             </div>
 
+            <!-- ปุ่มสลับโหมดมืด/สว่าง -->
+            <button type="button" onclick="toggleTheme()" aria-label="สลับโหมดมืด/สว่าง" title="สลับโหมดมืด/สว่าง"
+                    class="shrink-0 rounded-full p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-800
+                           dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-white
+                           focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 transition-colors">
+                <!-- ดวงจันทร์ (แสดงตอนโหมดสว่าง) -->
+                <svg class="h-5 w-5 dark:hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M21.752 15.002A9.718 9.718 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 003 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 009.002-5.998z"/></svg>
+                <!-- ดวงอาทิตย์ (แสดงตอนโหมดมืด) -->
+                <svg class="hidden h-5 w-5 dark:block" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v2.25m6.364.386l-1.591 1.591M21 12h-2.25m-.386 6.364l-1.591-1.591M12 18.75V21m-4.773-4.227l-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z"/></svg>
+            </button>
+
             <!-- ตัวสลับภาษา: อยู่นอกกล่องเลื่อน เพื่อให้ dropdown ไม่โดนตัด -->
             <div class="notranslate relative z-50 shrink-0" translate="no"
                  x-data="{ open: false }" @click.outside="open = false" @keydown.escape.window="open = false">
@@ -232,20 +293,24 @@
                 <button type="button" @click="open = !open" :aria-expanded="open" aria-haspopup="true"
                         aria-label="เปลี่ยนภาษา" title="เปลี่ยนภาษา"
                         class="flex items-center gap-2 rounded-full border border-slate-200 bg-white py-1 pl-1 pr-2.5 text-sm text-slate-700
-                               hover:border-slate-300 hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 transition">
-                    <img id="lang-current-flag" src="https://flagcdn.com/w40/th.png" alt="" class="h-6 w-6 rounded-full object-cover ring-1 ring-slate-200">
+                               hover:border-slate-300 hover:bg-slate-50
+                               dark:border-white/10 dark:bg-ink-800 dark:text-slate-200 dark:hover:border-white/20 dark:hover:bg-ink-700
+                               focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 transition">
+                    <img id="lang-current-flag" src="https://flagcdn.com/w40/th.png" alt="" class="h-6 w-6 rounded-full object-cover ring-1 ring-slate-200 dark:ring-white/10">
                     <span id="lang-current-code" class="hidden sm:inline font-medium">TH</span>
                     <svg class="h-4 w-4 text-slate-400 transition-transform" :class="open && 'rotate-180'" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5"/></svg>
                 </button>
 
                 <div x-show="open" x-cloak x-transition.opacity.duration.150ms
-                     class="absolute right-0 top-full mt-2 w-48 overflow-hidden rounded-xl bg-white p-1.5 shadow-lg ring-1 ring-slate-200">
+                     class="absolute right-0 top-full mt-2 w-48 overflow-hidden rounded-xl bg-white p-1.5 shadow-lg ring-1 ring-slate-200
+                            dark:bg-ink-800 dark:ring-white/10">
                     @foreach ($languages as [$code, $name, $flag, $short])
                         <button type="button" data-lang="{{ $code }}" data-flag="{{ $flag }}" data-short="{{ $short }}"
                                 @click="open = false"
                                 onclick="setLanguage('{{ $code }}')"
-                                class="lang-item flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 transition-colors">
-                            <img src="https://flagcdn.com/w40/{{ $flag }}.png" alt="" class="h-5 w-5 rounded-full object-cover ring-1 ring-slate-200">
+                                class="lang-item flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-slate-100
+                                       dark:text-slate-200 dark:hover:bg-white/10 transition-colors">
+                            <img src="https://flagcdn.com/w40/{{ $flag }}.png" alt="" class="h-5 w-5 rounded-full object-cover ring-1 ring-slate-200 dark:ring-white/10">
                             <span class="flex-1 text-left">{{ $name }}</span>
                             <svg class="lang-check hidden h-4 w-4 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/></svg>
                         </button>
@@ -257,37 +322,39 @@
             <div id="google_translate_element" style="position:absolute;left:-9999px;top:0" aria-hidden="true"></div>
 
             <!-- เมนูผู้ใช้ -->
-            <div class="relative z-50 hidden sm:block shrink-0 pl-3 border-l border-slate-200"
+            <div class="relative z-50 hidden sm:block shrink-0 pl-3 border-l border-slate-200 dark:border-white/10"
                  x-data="{ open: false }" @click.outside="open = false" @keydown.escape.window="open = false">
                 <button type="button" @click="open = !open" :aria-expanded="open" aria-haspopup="true"
-                        class="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 transition-colors"
-                        :class="open && 'bg-slate-100'">
-                    <span class="h-8 w-8 rounded-full bg-ink-800 text-white flex items-center justify-center text-sm font-semibold notranslate" translate="no">{{ $initial }}</span>
-                    <span class="text-sm font-medium text-slate-700 max-w-[10rem] truncate notranslate" translate="no">{{ $userName }}</span>
+                        class="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-slate-100 dark:hover:bg-white/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 transition-colors"
+                        :class="open && 'bg-slate-100 dark:bg-white/10'">
+                    <span class="h-8 w-8 rounded-full bg-ink-800 dark:bg-ink-700 text-white flex items-center justify-center text-sm font-semibold notranslate" translate="no">{{ $initial }}</span>
+                    <span class="text-sm font-medium text-slate-700 dark:text-slate-200 max-w-[10rem] truncate notranslate" translate="no">{{ $userName }}</span>
                     <svg class="h-4 w-4 text-slate-400 transition-transform" :class="open && 'rotate-180'" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5"/></svg>
                 </button>
 
                 <div x-show="open" x-cloak x-transition.opacity.duration.150ms
-                     class="absolute right-0 top-full mt-2 w-64 overflow-hidden rounded-xl bg-white shadow-lg ring-1 ring-slate-200">
-                    <div class="flex items-center gap-3 border-b border-slate-100 bg-slate-50 px-4 py-3">
-                        <span class="h-10 w-10 flex-shrink-0 rounded-full bg-ink-800 text-white flex items-center justify-center font-semibold notranslate" translate="no">{{ $initial }}</span>
+                     class="absolute right-0 top-full mt-2 w-64 overflow-hidden rounded-xl bg-white shadow-lg ring-1 ring-slate-200
+                            dark:bg-ink-800 dark:ring-white/10">
+                    <div class="flex items-center gap-3 border-b border-slate-100 bg-slate-50 px-4 py-3
+                                dark:border-white/10 dark:bg-ink-900">
+                        <span class="h-10 w-10 flex-shrink-0 rounded-full bg-ink-800 dark:bg-ink-700 text-white flex items-center justify-center font-semibold notranslate" translate="no">{{ $initial }}</span>
                         <div class="min-w-0">
-                            <div class="truncate text-sm font-medium text-slate-900 notranslate" translate="no">{{ $userName }}</div>
-                            <div class="truncate text-xs text-slate-500 notranslate" translate="no">{{ Auth::user()->email }}</div>
+                            <div class="truncate text-sm font-medium text-slate-900 dark:text-white notranslate" translate="no">{{ $userName }}</div>
+                            <div class="truncate text-xs text-slate-500 dark:text-slate-400 notranslate" translate="no">{{ Auth::user()->email }}</div>
                         </div>
                     </div>
 
                     <div class="p-1.5">
-                        <a href="{{ $profileUrl }}" class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">
+                        <a href="{{ $profileUrl }}" class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-white/10">
                             <svg class="h-5 w-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z"/></svg>
                             ข้อมูลโปรไฟล์
                         </a>
                     </div>
 
-                    <div class="border-t border-slate-100 p-1.5">
+                    <div class="border-t border-slate-100 p-1.5 dark:border-white/10">
                         <form method="POST" action="{{ route('logout') }}">
                             @csrf
-                            <button type="submit" class="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-red-600 hover:bg-red-50">
+                            <button type="submit" class="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-500/10">
                                 <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9"/></svg>
                                 ออกจากระบบ
                             </button>
@@ -298,15 +365,16 @@
         </header>
 
         <!-- Content Area (แสดงเต็มหน้าเวลาพิมพ์) -->
-        <main id="main-content" class="main-scroll flex-1 overflow-x-hidden overflow-y-auto bg-slate-100 p-4 sm:p-6 lg:p-8 print:p-0 print:bg-white print:overflow-visible">
+        <main id="main-content" class="main-scroll flex-1 overflow-x-hidden overflow-y-auto bg-slate-100 dark:bg-ink-950 p-4 sm:p-6 lg:p-8 print:p-0 print:bg-white print:overflow-visible">
 
             <!-- แจ้งเตือนจากระบบ -->
             @if (session('success'))
                 <div x-data="{ show: true }" x-init="setTimeout(() => show = false, 5000)" x-show="show" x-transition.opacity.duration.300ms
-                     class="mb-5 flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 print:hidden" role="status">
-                    <svg class="h-5 w-5 mt-0.5 flex-shrink-0 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                     class="mb-5 flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800
+                            dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200 print:hidden" role="status">
+                    <svg class="h-5 w-5 mt-0.5 flex-shrink-0 text-emerald-600 dark:text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                     <span class="flex-1">{{ session('success') }}</span>
-                    <button type="button" @click="show = false" class="-m-1 rounded p-1 text-emerald-600 hover:bg-emerald-100" aria-label="ปิดข้อความ">
+                    <button type="button" @click="show = false" class="-m-1 rounded p-1 text-emerald-600 hover:bg-emerald-100 dark:text-emerald-400 dark:hover:bg-emerald-500/10" aria-label="ปิดข้อความ">
                         <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
                     </button>
                 </div>
@@ -314,17 +382,19 @@
 
             @if (session('error'))
                 <div x-data="{ show: true }" x-show="show" x-transition.opacity.duration.300ms
-                     class="mb-5 flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 print:hidden" role="alert">
-                    <svg class="h-5 w-5 mt-0.5 flex-shrink-0 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"/></svg>
+                     class="mb-5 flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800
+                            dark:border-red-900 dark:bg-red-950/40 dark:text-red-200 print:hidden" role="alert">
+                    <svg class="h-5 w-5 mt-0.5 flex-shrink-0 text-red-600 dark:text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"/></svg>
                     <span class="flex-1">{{ session('error') }}</span>
-                    <button type="button" @click="show = false" class="-m-1 rounded p-1 text-red-600 hover:bg-red-100" aria-label="ปิดข้อความ">
+                    <button type="button" @click="show = false" class="-m-1 rounded p-1 text-red-600 hover:bg-red-100 dark:text-red-400 dark:hover:bg-red-500/10" aria-label="ปิดข้อความ">
                         <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
                     </button>
                 </div>
             @endif
 
             @if ($errors->any())
-                <div class="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 print:hidden" role="alert">
+                <div class="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800
+                            dark:border-red-900 dark:bg-red-950/40 dark:text-red-200 print:hidden" role="alert">
                     <div class="font-medium mb-1">กรุณาตรวจสอบข้อมูลอีกครั้ง</div>
                     <ul class="list-disc pl-5 space-y-0.5">
                         @foreach ($errors->all() as $error)
@@ -360,6 +430,26 @@
                 toggleSidebar();
             }
         });
+
+        // สลับโหมดมืด/สว่าง แล้วจำค่าไว้
+        function toggleTheme() {
+            const dark = document.documentElement.classList.toggle('dark');
+            try { localStorage.setItem('theme', dark ? 'dark' : 'light'); } catch (e) {}
+            // แจ้งหน้าอื่น (เช่น กราฟ) ให้ปรับสีตามโหมด: window.addEventListener('themechange', e => e.detail.dark)
+            window.dispatchEvent(new CustomEvent('themechange', { detail: { dark: dark } }));
+        }
+
+        // เวลาพิมพ์: ปิด dark mode ชั่วคราว เพื่อให้กระดาษออกมาเป็นสีสว่างเสมอ
+        (function () {
+            let wasDark = false;
+            window.addEventListener('beforeprint', function () {
+                wasDark = document.documentElement.classList.contains('dark');
+                document.documentElement.classList.remove('dark');
+            });
+            window.addEventListener('afterprint', function () {
+                if (wasDark) document.documentElement.classList.add('dark');
+            });
+        })();
 
         // แถบปุ่มลัดบน header: หมุนล้อเมาส์ = เลื่อนซ้ายขวา
         (function () {
@@ -407,6 +497,7 @@
             document.querySelectorAll('.lang-item').forEach(function (btn) {
                 const on = btn.dataset.lang === lang;
                 btn.classList.toggle('bg-amber-50', on);
+                btn.classList.toggle('dark:bg-white/10', on);
                 btn.classList.toggle('font-medium', on);
                 btn.querySelector('.lang-check').classList.toggle('hidden', !on);
                 if (on) {

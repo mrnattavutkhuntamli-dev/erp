@@ -48,6 +48,10 @@ class NewPasswordController extends Controller
                     'remember_token' => Str::random(60),
                 ])->save();
 
+                // รีเซ็ตรหัสผ่านผ่านอีเมลแล้ว ต้องเตะ session เดิมทุกเครื่องออก (เหมือนตอนเปลี่ยนรหัสผ่านในหน้าโปรไฟล์)
+                // ไม่งั้นคนที่ยึด session ไว้ก่อนหน้านี้ยังใช้งานต่อได้หลังเจ้าของบัญชีรีเซ็ตรหัสผ่านแล้ว
+                \App\Support\Sessions::forgetFor($user->id);
+
                 event(new PasswordReset($user));
             }
         );
