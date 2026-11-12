@@ -1,7 +1,5 @@
 <?php
-
 namespace App\Http\Controllers;
-
 
 use App\Models\Category;
 use Illuminate\Http\Request;
@@ -12,18 +10,24 @@ class CategoryController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
-        $categories = Category::latest()->get();
-        return view('categories.index', compact('categories'));
-    }
+        $search = trim((string) $request->query('search', ''));
 
-    /**
-     * Show the form for creating a new resource.
-     */
-    public function create()
-    {
-       return view('categories.create');
+        $categories = Category::query()
+            ->withCount('products')
+            ->when($search !== '', function ($q) use ($search) {
+                $q->where(function ($q) use ($search) {
+                    $q->where('name', 'like', "%{$search}%")
+                        ->orWhere('slug', 'like', "%{$search}%")
+                        ->orWhere('description', 'like', "%{$search}%");
+                });
+            })
+            ->latest()
+            ->paginate(15)
+            ->withQueryString();
+
+        return view('categories.index', compact('categories', 'search'));
     }
 
     /**
@@ -31,8 +35,8 @@ class CategoryController extends Controller
      */
     public function store(Request $request)
     {
-       $validated = $request->validate([
-           'name' => 'required|string|max:255|unique:categories,name',
+        $validated = $request->validate([
+            'name'        => 'required|string|max:255|unique:categories,name',
             'description' => 'nullable|string',
         ]);
         $validated['slug'] = $this->uniqueSlug($validated['name']);
@@ -41,20 +45,12 @@ class CategoryController extends Controller
     }
 
     /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(Category $category)
-    {
-        return view('categories.edit', compact('category'));
-    }
-
-    /**
      * Update the specified resource in storage.
      */
     public function update(Request $request, Category $category)
     {
-         $validated = $request->validate([
-           'name' => 'required|string|max:255|unique:categories,name,' . $category->id,
+        $validated = $request->validate([
+            'name'        => 'required|string|max:255|unique:categories,name,' . $category->id,
             'description' => 'nullable|string',
         ]);
         if ($request->name !== $category->name) {
@@ -90,8 +86,8 @@ class CategoryController extends Controller
             $slug = $base . '-' . Str::lower(Str::random(6));
         } while (
             Category::where('slug', $slug)
-                ->when($ignoreId, fn ($q) => $q->where('id', '!=', $ignoreId))
-                ->exists()
+            ->when($ignoreId, fn($q) => $q->where('id', '!=', $ignoreId))
+            ->exists()
         );
 
         return $slug;
