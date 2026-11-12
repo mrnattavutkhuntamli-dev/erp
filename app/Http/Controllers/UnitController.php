@@ -1,5 +1,4 @@
 <?php
-
 namespace App\Http\Controllers;
 
 use App\Models\Unit;
@@ -7,22 +6,32 @@ use Illuminate\Http\Request;
 
 class UnitController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        $units = Unit::latest()->get();
-        return view('units.index', compact('units'));
+        $search = trim((string) $request->query('search', ''));
+
+        $units = Unit::query()
+            ->withCount('products')
+            ->when($search !== '', function ($q) use ($search) {
+                $q->where(function ($q) use ($search) {
+                    $q->where('name', 'like', "%{$search}%")
+                        ->orWhere('short_name', 'like', "%{$search}%");
+                });
+            })
+            ->latest()
+            ->paginate(15)
+            ->withQueryString();
+
+        return view('units.index', compact('units', 'search'));
     }
 
-    public function create()
-    {
-        return view('units.create');
-    }
+
 
     public function store(Request $request)
     {
         $validated = $request->validate([
-           'name' => 'required|string|max:255|unique:units,name',
-           'short_name' => 'required|string|max:50|unique:units,short_name',
+            'name'       => 'required|string|max:255|unique:units,name',
+            'short_name' => 'required|string|max:50|unique:units,short_name',
         ]);
 
         Unit::create($validated);
@@ -30,16 +39,13 @@ class UnitController extends Controller
         return redirect()->route('units.index')->with('success', 'เพิ่มหน่วยนับสำเร็จ!');
     }
 
-    public function edit(Unit $unit)
-    {
-        return view('units.edit', compact('unit'));
-    }
+
 
     public function update(Request $request, Unit $unit)
     {
         $validated = $request->validate([
-           'name' => 'required|string|max:255|unique:units,name,' . $unit->id,
-           'short_name' => 'required|string|max:50|unique:units,short_name,' . $unit->id,
+            'name'       => 'required|string|max:255|unique:units,name,' . $unit->id,
+            'short_name' => 'required|string|max:50|unique:units,short_name,' . $unit->id,
         ]);
 
         $unit->update($validated);
