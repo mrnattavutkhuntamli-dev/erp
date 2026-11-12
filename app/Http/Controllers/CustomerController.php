@@ -4,23 +4,37 @@ namespace App\Http\Controllers;
 use App\Models\Customer;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+
 class CustomerController extends Controller
 {
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
-        $customers = Customer::latest()->paginate(15);
-        return view('customers.index', compact('customers'));
-    }
+        $search = trim((string) $request->input('search', ''));
+        $status = $request->input('status', '');
 
-    /**
-     * Show the form for creating a new resource.
-     */
-    public function create()
-    {
-        return view('customers.create');
+        $customers = Customer::query()
+            ->when($search !== '', function ($query) use ($search) {
+                // escape ตัวอักษรพิเศษของ LIKE
+                $like = '%' . addcslashes($search, '%_\\') . '%';
+
+                $query->where(function ($q) use ($like) {
+                    $q->where('name', 'like', $like)
+                        ->orWhere('phone', 'like', $like)
+                        ->orWhere('license_plate', 'like', $like)
+                        ->orWhere('email', 'like', $like)
+                        ->orWhere('address', 'like', $like);
+                });
+            })
+            ->when($status === 'active', fn($q) => $q->where('is_active', true))
+            ->when($status === 'inactive', fn($q) => $q->where('is_active', false))
+            ->latest()
+            ->paginate(15)
+            ->withQueryString();
+
+        return view('customers.index', compact('customers', 'search', 'status'));
     }
 
     /**
@@ -38,14 +52,6 @@ class CustomerController extends Controller
         $validated['is_active'] = $request->has('is_active') ? true : false;
         Customer::create($validated);
         return redirect()->route('customers.index')->with('success', 'เพิ่มข้อมูลลูกค้าสำเร็จ!');
-    }
-
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(Customer $customer)
-    {
-        return view('customers.edit', compact('customer'));
     }
 
     /**
