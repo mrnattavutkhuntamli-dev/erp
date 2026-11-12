@@ -232,11 +232,11 @@ Route::middleware(['auth', '2fa'])->group(function () {
     // 7. หน้าจัดการคู่ค้า (Admin, Cashier)
     // ==========================================
     Route::middleware('permission:manage-customers')->group(function () {
-        Route::resource('customers', CustomerController::class)->except(['show']);
+        Route::resource('customers', CustomerController::class)->except(['show', 'create', 'edit']);
     });
 
     Route::middleware('permission:manage-suppliers')->group(function () {
-        Route::resource('suppliers', SupplierController::class)->except(['show']);
+        Route::resource('suppliers', SupplierController::class)->except(['show', 'create', 'edit']);
     });
 
     // ==========================================

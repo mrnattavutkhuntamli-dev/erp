@@ -20,18 +20,56 @@
     <section class="overflow-hidden rounded-xl bg-white ring-1 ring-slate-200">
 
         <!-- แถบหัวตาราง -->
-        <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-5 py-4">
-            <div>
-                <h1 class="text-lg font-semibold text-slate-900">รายการซัพพลายเออร์ทั้งหมด</h1>
-                <p class="text-sm text-slate-500">
-                    ทั้งหมด {{ number_format(method_exists($suppliers, 'total') ? $suppliers->total() : $suppliers->count()) }} รายการ
-                </p>
+        <div class="border-b border-slate-200 px-5 py-4">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                    <h1 class="text-lg font-semibold text-slate-900">รายการซัพพลายเออร์ทั้งหมด</h1>
+                    <p class="text-sm text-slate-500">
+                        @if ($search !== '' || $status !== '')
+                            พบ {{ number_format($suppliers->total()) }} รายการ
+                            @if ($search !== '')
+                                จากคำค้น "<span class="font-medium text-slate-700">{{ $search }}</span>"
+                            @endif
+                        @else
+                            ทั้งหมด {{ number_format($suppliers->total()) }} รายการ
+                        @endif
+                    </p>
+                </div>
+                <button type="button" data-open-create
+                        class="inline-flex items-center gap-2 rounded-lg bg-ink-900 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-ink-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 transition-colors">
+                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+                    เพิ่มซัพพลายเออร์
+                </button>
             </div>
-            <a href="{{ route('suppliers.create') }}"
-               class="inline-flex items-center gap-2 rounded-lg bg-ink-900 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-ink-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 transition-colors">
-                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
-                เพิ่มซัพพลายเออร์
-            </a>
+
+            {{-- ฟอร์มค้นหา --}}
+            <form method="GET" action="{{ route('suppliers.index') }}" class="mt-4 flex flex-wrap items-center gap-2">
+                <div class="relative min-w-[16rem] flex-1">
+                    <svg class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/></svg>
+                    <input type="search" name="search" value="{{ $search }}"
+                           placeholder="ค้นหาชื่อ, ผู้ติดต่อ, เบอร์โทร, อีเมล, ที่อยู่..."
+                           class="w-full rounded-lg border border-slate-300 py-2 pl-9 pr-3 text-sm focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-200">
+                </div>
+
+                <select name="status" onchange="this.form.submit()"
+                        class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-200">
+                    <option value="" @selected($status === '')>ทุกสถานะ</option>
+                    <option value="active" @selected($status === 'active')>เปิดใช้งาน</option>
+                    <option value="inactive" @selected($status === 'inactive')>ปิดใช้งาน</option>
+                </select>
+
+                <button type="submit"
+                        class="rounded-lg bg-slate-800 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 transition-colors">
+                    ค้นหา
+                </button>
+
+                @if ($search !== '' || $status !== '')
+                    <a href="{{ route('suppliers.index') }}"
+                       class="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 transition-colors">
+                        ล้าง
+                    </a>
+                @endif
+            </form>
         </div>
 
         <!-- ตาราง -->
@@ -43,19 +81,37 @@
                         <th class="px-5 py-3 font-medium">ผู้ติดต่อ</th>
                         <th class="px-5 py-3 font-medium">เบอร์โทร</th>
                         <th class="px-5 py-3 font-medium">อีเมล</th>
+                        <th class="px-5 py-3 font-medium">เครดิต</th>
                         <th class="px-5 py-3 font-medium text-right">จัดการ</th>
                     </tr>
                 </thead>
 
                 <tbody class="divide-y divide-slate-100">
                     @forelse ($suppliers as $supplier)
+                        @php
+                            $supplierData = [
+                                'id'               => $supplier->id,
+                                'name'             => $supplier->name,
+                                'contact_name'     => $supplier->contact_name,
+                                'phone'            => $supplier->phone,
+                                'email'            => $supplier->email,
+                                'address'          => $supplier->address,
+                                'credit_term_days' => (int) $supplier->credit_term_days,
+                                'is_active'        => (bool) $supplier->is_active,
+                            ];
+                        @endphp
                         <tr class="hover:bg-slate-50 transition-colors">
                             <td class="px-5 py-3">
                                 <div class="flex items-center gap-3">
                                     <div class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-slate-100 text-sm font-semibold text-slate-600 ring-1 ring-slate-200">
                                         {{ mb_strtoupper(mb_substr($supplier->name, 0, 1)) }}
                                     </div>
-                                    <span class="font-medium text-slate-900">{{ $supplier->name }}</span>
+                                    <div>
+                                        <span class="font-medium text-slate-900">{{ $supplier->name }}</span>
+                                        @unless ($supplier->is_active)
+                                            <span class="ml-1 rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-500">ปิดใช้งาน</span>
+                                        @endunless
+                                    </div>
                                 </div>
                             </td>
 
@@ -70,18 +126,27 @@
                                 @endif
                             </td>
 
-                            {{-- ปุ่มจัดการ --}}
+                            <td class="px-5 py-3 text-slate-600">
+                                @if ((int) $supplier->credit_term_days > 0)
+                                    {{ $supplier->credit_term_days }} วัน
+                                @else
+                                    <span class="text-slate-400">เงินสด</span>
+                                @endif
+                            </td>
+
                             <td class="px-5 py-3">
                                 <div class="flex items-center justify-end gap-1.5">
-                                    <a href="{{ route('suppliers.edit', $supplier->id) }}"
-                                       title="แก้ไข" aria-label="แก้ไข {{ $supplier->name }}"
-                                       class="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100 transition-colors">
+                                    <button type="button"
+                                            data-open-edit
+                                            data-supplier="{{ json_encode($supplierData, JSON_UNESCAPED_UNICODE) }}"
+                                            title="แก้ไข" aria-label="แก้ไข {{ $supplier->name }}"
+                                            class="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100 transition-colors">
                                         <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125"/></svg>
                                         แก้ไข
-                                    </a>
+                                    </button>
 
                                     <form action="{{ route('suppliers.destroy', $supplier->id) }}" method="POST"
-                                          onsubmit="return confirm('ยืนยันการลบ?');">
+                                          onsubmit="return confirm('ยืนยันการลบซัพพลายเออร์รายนี้?');">
                                         @csrf
                                         @method('DELETE')
                                         <button type="submit"
@@ -96,16 +161,25 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="5" class="px-5 py-14 text-center">
+                            <td colspan="6" class="px-5 py-14 text-center">
                                 <div class="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-400">
                                     <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 18.75a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 01-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124a17.902 17.902 0 00-3.213-9.193 2.056 2.056 0 00-1.58-.86H14.25M16.5 18.75h-2.25m0-11.177v-.958c0-.568-.422-1.048-.987-1.106a48.554 48.554 0 00-10.026 0 1.106 1.106 0 00-.987 1.106v7.635m12-6.677v6.677m0 4.5v-4.5m0 0h-12"/></svg>
                                 </div>
-                                <p class="font-medium text-slate-900">ยังไม่มีซัพพลายเออร์ในระบบ</p>
-                                <p class="mb-4 text-sm text-slate-500">เริ่มจากเพิ่มซัพพลายเออร์รายแรกของคุณ</p>
-                                <a href="{{ route('suppliers.create') }}"
-                                   class="inline-flex items-center gap-2 rounded-lg bg-ink-900 px-4 py-2 text-sm font-medium text-white hover:bg-ink-800 transition-colors">
-                                    เพิ่มซัพพลายเออร์
-                                </a>
+                                @if ($search !== '' || $status !== '')
+                                    <p class="font-medium text-slate-900">ไม่พบซัพพลายเออร์ที่ตรงกับการค้นหา</p>
+                                    <p class="mb-4 text-sm text-slate-500">ลองเปลี่ยนคำค้นหรือล้างตัวกรอง</p>
+                                    <a href="{{ route('suppliers.index') }}"
+                                       class="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 transition-colors">
+                                        ล้างการค้นหา
+                                    </a>
+                                @else
+                                    <p class="font-medium text-slate-900">ยังไม่มีซัพพลายเออร์ในระบบ</p>
+                                    <p class="mb-4 text-sm text-slate-500">เริ่มจากเพิ่มซัพพลายเออร์รายแรกของคุณ</p>
+                                    <button type="button" data-open-create
+                                            class="inline-flex items-center gap-2 rounded-lg bg-ink-900 px-4 py-2 text-sm font-medium text-white hover:bg-ink-800 transition-colors">
+                                        เพิ่มซัพพลายเออร์
+                                    </button>
+                                @endif
                             </td>
                         </tr>
                     @endforelse
@@ -114,10 +188,219 @@
         </div>
 
         <!-- เลขหน้า -->
-        @if (method_exists($suppliers, 'hasPages') && $suppliers->hasPages())
+        @if ($suppliers->hasPages())
             <div class="border-t border-slate-200 px-5 py-4">
                 {{ $suppliers->withQueryString()->links() }}
             </div>
         @endif
     </section>
+
+    {{-- ===================== Drawer ฟอร์ม เพิ่ม/แก้ไข ===================== --}}
+    <div id="supplierDrawer"
+         class="fixed inset-0 z-50 hidden"
+         role="dialog" aria-modal="true" aria-labelledby="drawerTitle"
+         data-store-url="{{ route('suppliers.store') }}"
+         data-update-url="{{ route('suppliers.update', '__ID__') }}"
+         data-reopen="{{ $errors->any() ? old('_form') : '' }}"
+         data-reopen-id="{{ $errors->any() ? old('_id') : '' }}">
+
+        {{-- Backdrop --}}
+        <div id="drawerBackdrop" class="absolute inset-0 bg-slate-900/40 opacity-0 transition-opacity duration-300"></div>
+
+        {{-- Panel --}}
+        <div id="drawerPanel"
+             class="absolute inset-y-0 right-0 flex w-full max-w-md translate-x-full flex-col bg-white shadow-xl transition-transform duration-300">
+
+            <div class="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+                <h2 id="drawerTitle" class="text-lg font-semibold text-slate-900">เพิ่มซัพพลายเออร์</h2>
+                <button type="button" data-close-drawer aria-label="ปิด"
+                        class="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600">
+                    <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+
+            <form id="supplierForm" method="POST" action="{{ route('suppliers.store') }}" class="flex min-h-0 flex-1 flex-col">
+                @csrf
+                <input type="hidden" name="_method" id="formMethod" value="PUT" disabled>
+                <input type="hidden" name="_form" id="formMode" value="create">
+                <input type="hidden" name="_id" id="formId" value="">
+
+                <div class="flex-1 space-y-4 overflow-y-auto px-5 py-5">
+                    @if ($errors->any())
+                        <div id="formErrors" class="rounded-lg bg-red-50 p-3 text-sm text-red-700 ring-1 ring-red-200">
+                            <ul class="list-disc pl-5">
+                                @foreach ($errors->all() as $error)
+                                    <li>{{ $error }}</li>
+                                @endforeach
+                            </ul>
+                        </div>
+                    @endif
+
+                    <div>
+                        <label for="f_name" class="mb-1.5 block text-sm font-medium text-slate-700">ชื่อบริษัท/ร้าน <span class="text-red-500">*</span></label>
+                        <input type="text" id="f_name" name="name" value="{{ old('name') }}" required
+                               class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-200">
+                    </div>
+                    <div>
+                        <label for="f_contact_name" class="mb-1.5 block text-sm font-medium text-slate-700">ชื่อผู้ติดต่อ</label>
+                        <input type="text" id="f_contact_name" name="contact_name" value="{{ old('contact_name') }}"
+                               class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-200">
+                    </div>
+                    <div>
+                        <label for="f_phone" class="mb-1.5 block text-sm font-medium text-slate-700">เบอร์โทรศัพท์</label>
+                        <input type="text" id="f_phone" name="phone" value="{{ old('phone') }}"
+                               class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-200">
+                    </div>
+                    <div>
+                        <label for="f_email" class="mb-1.5 block text-sm font-medium text-slate-700">อีเมล</label>
+                        <input type="email" id="f_email" name="email" value="{{ old('email') }}"
+                               class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-200">
+                    </div>
+                    <div>
+                        <label for="f_credit_term_days" class="mb-1.5 block text-sm font-medium text-slate-700">เครดิต (วัน)</label>
+                        <input type="number" id="f_credit_term_days" name="credit_term_days" min="0" max="365" value="{{ old('credit_term_days', 0) }}"
+                               class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-200">
+                        <p class="mt-1 text-xs text-slate-400">0 = ชำระเป็นเงินสด</p>
+                    </div>
+                    <div>
+                        <label for="f_address" class="mb-1.5 block text-sm font-medium text-slate-700">ที่อยู่</label>
+                        <textarea id="f_address" name="address" rows="3"
+                                  class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-200">{{ old('address') }}</textarea>
+                    </div>
+                    <div class="flex items-center">
+                        <input type="checkbox" id="f_is_active" name="is_active" value="1"
+                               {{ old('_form') ? (old('is_active') ? 'checked' : '') : 'checked' }}
+                               class="h-4 w-4 rounded border-slate-300 text-amber-600 focus:ring-amber-500">
+                        <label for="f_is_active" class="ml-2 text-sm text-slate-700">เปิดใช้งาน</label>
+                    </div>
+                </div>
+
+                <div class="flex justify-end gap-2 border-t border-slate-200 px-5 py-4">
+                    <button type="button" data-close-drawer
+                            class="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 transition-colors">
+                        ยกเลิก
+                    </button>
+                    <button type="submit" id="formSubmit"
+                            class="rounded-lg bg-ink-900 px-5 py-2 text-sm font-medium text-white shadow-sm hover:bg-ink-800 transition-colors">
+                        บันทึก
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
 @endsection
+
+@push('scripts')
+<script>
+(function () {
+    const drawer    = document.getElementById('supplierDrawer');
+    const panel     = document.getElementById('drawerPanel');
+    const backdrop  = document.getElementById('drawerBackdrop');
+    const form      = document.getElementById('supplierForm');
+    const title     = document.getElementById('drawerTitle');
+    const submitBtn = document.getElementById('formSubmit');
+    const method    = document.getElementById('formMethod');
+    const mode      = document.getElementById('formMode');
+    const idInput   = document.getElementById('formId');
+
+    const storeUrl  = drawer.dataset.storeUrl;
+    const updateUrl = drawer.dataset.updateUrl;
+
+    const f = {
+        name:             document.getElementById('f_name'),
+        contact_name:     document.getElementById('f_contact_name'),
+        phone:            document.getElementById('f_phone'),
+        email:            document.getElementById('f_email'),
+        credit_term_days: document.getElementById('f_credit_term_days'),
+        address:          document.getElementById('f_address'),
+        is_active:        document.getElementById('f_is_active'),
+    };
+
+    function show() {
+        drawer.classList.remove('hidden');
+        requestAnimationFrame(() => {
+            backdrop.classList.remove('opacity-0');
+            panel.classList.remove('translate-x-full');
+        });
+        document.body.classList.add('overflow-hidden');
+        setTimeout(() => f.name.focus(), 300);
+    }
+
+    function hide() {
+        backdrop.classList.add('opacity-0');
+        panel.classList.add('translate-x-full');
+        document.body.classList.remove('overflow-hidden');
+        setTimeout(() => drawer.classList.add('hidden'), 300);
+    }
+
+    function clearErrors() {
+        const box = document.getElementById('formErrors');
+        if (box) box.remove();
+    }
+
+    function setCreateMode() {
+        form.action = storeUrl;
+        method.disabled = true;
+        mode.value = 'create';
+        idInput.value = '';
+        title.textContent = 'เพิ่มซัพพลายเออร์';
+        submitBtn.textContent = 'บันทึก';
+    }
+
+    function setEditMode(id) {
+        form.action = updateUrl.replace('__ID__', id);
+        method.disabled = false;
+        mode.value = 'edit';
+        idInput.value = id;
+        title.textContent = 'แก้ไขข้อมูลซัพพลายเออร์';
+        submitBtn.textContent = 'อัปเดตข้อมูล';
+    }
+
+    function openCreate() {
+        form.reset();
+        Object.values(f).forEach(el => { if (el.type !== 'checkbox') el.value = ''; });
+        f.credit_term_days.value = 0;
+        setCreateMode();
+        f.is_active.checked = true;
+        clearErrors();
+        show();
+    }
+
+    function openEdit(s) {
+        setEditMode(s.id);
+        f.name.value             = s.name ?? '';
+        f.contact_name.value     = s.contact_name ?? '';
+        f.phone.value            = s.phone ?? '';
+        f.email.value            = s.email ?? '';
+        f.credit_term_days.value = s.credit_term_days ?? 0;
+        f.address.value          = s.address ?? '';
+        f.is_active.checked      = !!s.is_active;
+        clearErrors();
+        show();
+    }
+
+    document.addEventListener('click', (e) => {
+        if (e.target.closest('[data-open-create]')) return openCreate();
+
+        const editBtn = e.target.closest('[data-open-edit]');
+        if (editBtn) return openEdit(JSON.parse(editBtn.dataset.supplier));
+
+        if (e.target.closest('[data-close-drawer]') || e.target === backdrop) hide();
+    });
+
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && !drawer.classList.contains('hidden')) hide();
+    });
+
+    // เปิด drawer ค้างไว้อัตโนมัติเมื่อ validate ไม่ผ่าน (ค่าเดิมถูกเติมด้วย old() แล้ว)
+    const reopen = drawer.dataset.reopen;
+    if (reopen === 'edit' && drawer.dataset.reopenId) {
+        setEditMode(drawer.dataset.reopenId);
+        show();
+    } else if (reopen === 'create') {
+        setCreateMode();
+        show();
+    }
+})();
+</script>
+@endpush
