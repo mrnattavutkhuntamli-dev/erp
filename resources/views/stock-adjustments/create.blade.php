@@ -16,6 +16,7 @@
 
         <form action="{{ route('stock-adjustments.store') }}" method="POST">
             @csrf
+            <input type="hidden" name="idempotency_key" value="{{ old('idempotency_key', \Illuminate\Support\Str::uuid()) }}">
 
             <div class="mb-4">
                 <label class="block text-slate-700 font-medium mb-2">สินค้าที่ต้องการปรับปรุง <span class="text-red-500">*</span></label>

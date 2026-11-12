@@ -7,7 +7,7 @@ class Quotation extends Model
 {
     protected $fillable = [
         'quote_no', 'customer_id', 'user_id', 'quote_date', 'valid_until',
-        'subtotal', 'discount', 'total', 'status', 'note'
+        'subtotal', 'discount', 'total', 'status', 'note', 'idempotency_key',
     ];
     protected $casts = [
         'quote_date' => 'date',

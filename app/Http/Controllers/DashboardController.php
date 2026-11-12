@@ -21,7 +21,8 @@ class DashboardController extends Controller
         $totalSuppliers   = $canSeeSuppliers ? Supplier::count() : 0;
         $totalStockValue  = $canSeeValue ? Product::sum(DB::raw('cost * stock')) : null;
         $lowStockProducts = $canSeeStock
-            ? Product::where('stock', '<', 10)->where('is_active', true)->get()
+            ? Product::where('stock', '<', (int) config('pos.low_stock_threshold', 10))
+                ->where('is_active', true)->orderBy('stock')->get()
             : collect();
 
         return view('dashboard', compact(

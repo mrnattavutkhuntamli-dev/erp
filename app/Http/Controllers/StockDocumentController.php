@@ -170,10 +170,15 @@ class StockDocumentController extends Controller
             ->with('success', 'อัปเดตข้อมูลเอกสารสำเร็จ!');
     }
 
-    public function destroy(StockDocument $stockDocument)
+    public function destroy(Request $request, StockDocument $stockDocument)
     {
+        // เหตุผลไม่บังคับฝั่งเซิร์ฟเวอร์ (หน้าจอบังคับกรอกก่อนกดยกเลิก) แต่ถ้ามีจะถูกเก็บเป็นประวัติ
+        $validated = $request->validate([
+            'void_reason' => 'nullable|string|max:500',
+        ]);
+
         try {
-            return DB::transaction(function () use ($stockDocument) {
+            return DB::transaction(function () use ($stockDocument, $validated) {
                 $doc = StockDocument::lockForUpdate()->findOrFail($stockDocument->id);
 
                 if ($doc->status === 'voided') {
@@ -223,7 +228,12 @@ class StockDocumentController extends Controller
                     $product->save();
                 }
 
-                $doc->update(['status' => 'voided']);
+                $doc->update([
+                    'status'      => 'voided',
+                    'voided_at'   => now(),
+                    'voided_by'   => auth()->id(),
+                    'void_reason' => $validated['void_reason'] ?? null,
+                ]);
 
                 // ใบรับเข้าที่สร้างจากการรับของ PO: ย้อนสถานะ PO กลับเป็น pending เพื่อให้รับของใหม่ได้
                 if ($po && $po->status === 'received') {

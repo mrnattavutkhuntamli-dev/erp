@@ -14,6 +14,7 @@
 
         <form action="{{ route('quotations.store') }}" method="POST">
             @csrf
+            <input type="hidden" name="idempotency_key" value="{{ old('idempotency_key', \Illuminate\Support\Str::uuid()) }}">
 
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8 bg-slate-50 p-4 rounded-lg border border-slate-200">
                 <div class="md:col-span-2">

@@ -29,6 +29,15 @@ class ExpenseController extends Controller
     {
         $validated = $this->validated($request);
 
+        // กดซ้ำด้วย key เดิม → ไม่บันทึกค่าใช้จ่ายซ้ำ
+        $key = $request->input('idempotency_key');
+        if (is_string($key) && $key !== '' && strlen($key) <= 64) {
+            if (Expense::where('idempotency_key', $key)->exists()) {
+                return redirect()->route('expenses.index')->with('success', 'รายการนี้ถูกบันทึกไปแล้ว');
+            }
+            $validated['idempotency_key'] = $key;
+        }
+
         $validated['user_id'] = auth()->id();
         // ติ๊ก "จ่ายจากเงินในลิ้นชัก" → ผูกกับกะที่เปิดอยู่ แล้วระบบจะหักจาก "เงินที่ควรมีในลิ้นชัก" ตอนปิดกะ
         $validated['from_cash_drawer'] = $request->boolean('from_cash_drawer');
@@ -42,7 +51,12 @@ class ExpenseController extends Controller
         }
         $validated['cashier_shift_id'] = $shift?->id;
 
-        Expense::create($validated);
+        try {
+            Expense::create($validated);
+        } catch (\Illuminate\Database\UniqueConstraintViolationException $e) {
+            // กดซ้ำพร้อมกัน → อีกคำขอบันทึกไปแล้ว
+            return redirect()->route('expenses.index')->with('success', 'รายการนี้ถูกบันทึกไปแล้ว');
+        }
 
         return redirect()->route('expenses.index')->with('success', 'บันทึกค่าใช้จ่ายสำเร็จ!');
     }

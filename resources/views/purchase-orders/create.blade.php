@@ -16,6 +16,7 @@
 
         <form action="{{ route('purchase-orders.store') }}" method="POST">
             @csrf
+            <input type="hidden" name="idempotency_key" value="{{ old('idempotency_key', \Illuminate\Support\Str::uuid()) }}">
 
             <!-- ข้อมูลหัวเอกสาร -->
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8 bg-slate-50 p-4 rounded-lg border border-slate-200">

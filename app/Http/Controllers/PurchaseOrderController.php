@@ -45,6 +45,7 @@ class PurchaseOrderController extends Controller
             'order_date'         => 'required|date',
             'expected_date'      => 'nullable|date|after_or_equal:order_date',
             'note'               => 'nullable|string',
+            'idempotency_key'    => 'nullable|string|max:64',
             'items'              => 'required|array|min:1',
             'items.*.product_id' => ['required', 'distinct', Rule::exists('products', 'id')->where('is_active', true)], // ป้องกันสินค้าซ้ำในใบเดียวกัน + ต้องเป็นสินค้าที่ใช้งานอยู่
             'items.*.quantity'   => 'required|integer|min:1|max:999999',
@@ -54,6 +55,15 @@ class PurchaseOrderController extends Controller
         try {
             // 2. ใช้ Database Transaction เพื่อความปลอดภัยของข้อมูล
             return DB::transaction(function () use ($validated) {
+
+                // กดซ้ำด้วย key เดิม → ไม่สร้าง PO ซ้ำ
+                if (! empty($validated['idempotency_key'])) {
+                    $existing = PurchaseOrder::where('idempotency_key', $validated['idempotency_key'])->first();
+                    if ($existing) {
+                        return redirect()->route('purchase-orders.show', $existing->id)
+                            ->with('success', 'ใบสั่งซื้อ ' . $existing->po_no . ' ถูกบันทึกไปแล้ว');
+                    }
+                }
 
                 // คำนวณยอดเงินรวมทั้งหมด (total_amount) ของใบสั่งซื้อ
                 $totalCents = collect($validated['items'])->sum(function ($item) {
@@ -77,6 +87,7 @@ class PurchaseOrderController extends Controller
                     'status'        => 'pending', // สถานะเริ่มต้นของใบสั่งซื้อ
                     'total_amount'  => $totalAmount,
                     'note'          => $validated['note'] ?? null,
+                    'idempotency_key' => $validated['idempotency_key'] ?? null,
                 ]);
 
                 // 4. แปลงข้อมูลรายการสินค้าเพื่อเตรียมบันทึกในครั้งเดียว (Bulk Insert)
@@ -98,6 +109,16 @@ class PurchaseOrderController extends Controller
             });
         } catch (\DomainException $e) {
             return back()->with('error', $e->getMessage())->withInput();
+        } catch (\Illuminate\Database\UniqueConstraintViolationException $e) {
+            if (! empty($validated['idempotency_key'])) {
+                $existing = PurchaseOrder::where('idempotency_key', $validated['idempotency_key'])->first();
+                if ($existing) {
+                    return redirect()->route('purchase-orders.show', $existing->id)
+                        ->with('success', 'ใบสั่งซื้อ ' . $existing->po_no . ' ถูกบันทึกไปแล้ว');
+                }
+            }
+            report($e);
+            return back()->with('error', 'เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง')->withInput();
         } catch (\Throwable $e) {
             report($e);
             return back()->with('error', 'เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง')->withInput();
@@ -192,6 +213,9 @@ class PurchaseOrderController extends Controller
     {
         $validated = $request->validate([
             'amount'          => 'required|numeric|min:0.01|max:99999999.99|decimal:0,2',
+            'payment_date'    => 'nullable|date_format:Y-m-d|before_or_equal:today',
+            'payment_method'  => 'nullable|in:cash,transfer,cheque,other',
+            'note'            => 'nullable|string|max:255',
             'idempotency_key' => 'nullable|string|max:64',
         ]);
 
@@ -225,6 +249,9 @@ class PurchaseOrderController extends Controller
                     'user_id'           => auth()->id(),
                     'amount'            => Money::fromCents($paySatang),
                     'status'            => 'active',
+                    'payment_date'      => $validated['payment_date'] ?? now()->toDateString(),
+                    'payment_method'    => $validated['payment_method'] ?? null,
+                    'note'              => $validated['note'] ?? null,
                     'idempotency_key'   => $validated['idempotency_key'] ?? null,
                 ]);
 

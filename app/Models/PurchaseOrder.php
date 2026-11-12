@@ -9,7 +9,7 @@ class PurchaseOrder extends Model
     protected $fillable = [
         'po_no', 'supplier_id', 'user_id', 'order_date',
         'expected_date', 'received_at', 'status', 'total_amount', 'paid_amount', 'note',
-        'cancel_reason', 'cancelled_at', 'cancelled_by',
+        'cancel_reason', 'cancelled_at', 'cancelled_by', 'idempotency_key',
     ];
     protected $casts = [
         'order_date'    => 'date',

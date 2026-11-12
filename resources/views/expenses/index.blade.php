@@ -262,6 +262,7 @@
     <form id="expenseForm" method="POST" class="flex flex-1 flex-col overflow-hidden">
         @csrf
         <input type="hidden" name="_method" id="formMethod" value="POST">
+        <input type="hidden" name="idempotency_key" value="{{ old('idempotency_key', \Illuminate\Support\Str::uuid()) }}">
 
         <div class="flex-1 space-y-6 overflow-y-auto p-6">
             {{-- จำนวนเงิน (เด่นสุด) --}}

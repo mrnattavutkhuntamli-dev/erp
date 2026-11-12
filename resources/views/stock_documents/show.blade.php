@@ -9,6 +9,19 @@
                 พิมพ์เอกสาร</button>
         </div>
 
+        @if ($stockDocument->status === 'voided')
+            <div class="mb-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700 print:border-red-400">
+                <p class="font-semibold">เอกสารนี้ถูกยกเลิกแล้ว</p>
+                @if ($stockDocument->voided_at)
+                    <p>เมื่อ {{ $stockDocument->voided_at->format('d/m/Y H:i') }}
+                        @if ($stockDocument->voidedBy) โดย {{ $stockDocument->voidedBy->name }} @endif</p>
+                @endif
+                @if ($stockDocument->void_reason)
+                    <p>เหตุผล: {{ $stockDocument->void_reason }}</p>
+                @endif
+            </div>
+        @endif
+
         <!-- กระดาษเอกสาร (สำหรับพิมพ์) -->
         <div class="bg-white p-10 rounded shadow-md border border-gray-200 print:shadow-none print:border-none">
             <!-- Header เอกสาร -->

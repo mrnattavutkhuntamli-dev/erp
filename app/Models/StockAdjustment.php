@@ -19,6 +19,7 @@ class StockAdjustment extends Model
         'stock_after',
         'reason',
         'note',
+        'idempotency_key',
     ];
 
     /**

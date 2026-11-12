@@ -104,12 +104,23 @@
                         </div>
                         @can('manage-expenses')
                             @if($purchaseOrder->remaining_amount > 0)
-                                <form action="{{ route('purchase-orders.pay', $purchaseOrder->id) }}" method="POST" class="flex items-center gap-2">
+                                <form action="{{ route('purchase-orders.pay', $purchaseOrder->id) }}" method="POST" class="flex flex-wrap items-center gap-2">
                                     @csrf
                                     <input type="hidden" name="idempotency_key" value="{{ \Illuminate\Support\Str::uuid() }}">
                                     <input type="number" name="amount" step="0.01" min="0.01" max="{{ $purchaseOrder->remaining_amount }}"
                                            value="{{ $purchaseOrder->remaining_amount }}" required
                                            class="w-40 rounded-lg border border-slate-300 p-2 text-right focus:ring-2 focus:ring-blue-500">
+                                    <input type="date" name="payment_date" value="{{ now()->toDateString() }}" max="{{ now()->toDateString() }}"
+                                           class="rounded-lg border border-slate-300 p-2 focus:ring-2 focus:ring-blue-500">
+                                    <select name="payment_method" class="rounded-lg border border-slate-300 p-2 focus:ring-2 focus:ring-blue-500">
+                                        <option value="">วิธีจ่าย</option>
+                                        <option value="cash">เงินสด</option>
+                                        <option value="transfer">โอน</option>
+                                        <option value="cheque">เช็ค</option>
+                                        <option value="other">อื่นๆ</option>
+                                    </select>
+                                    <input type="text" name="note" maxlength="255" placeholder="หมายเหตุ/เลขอ้างอิง"
+                                           class="w-48 rounded-lg border border-slate-300 p-2 focus:ring-2 focus:ring-blue-500">
                                     <button type="submit" onclick="return confirm('ยืนยันบันทึกการจ่ายเงินให้ Supplier?')"
                                             class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">บันทึกการจ่ายเงิน</button>
                                 </form>
@@ -124,8 +135,10 @@
                                 @foreach($purchaseOrder->payments as $pay)
                                     <li class="flex flex-wrap items-center justify-between gap-2 {{ $pay->status === 'voided' ? 'text-slate-400 line-through' : 'text-slate-700' }}">
                                         <span>
-                                            {{ $pay->created_at->format('d/m/Y H:i') }} — ฿{{ number_format($pay->amount, 2) }}
+                                            {{ ($pay->payment_date ?? $pay->created_at)->format('d/m/Y') }} — ฿{{ number_format($pay->amount, 2) }}
+                                            @if($pay->payment_method) [{{ ['cash' => 'เงินสด', 'transfer' => 'โอน', 'cheque' => 'เช็ค', 'other' => 'อื่นๆ'][$pay->payment_method] ?? $pay->payment_method }}] @endif
                                             @if($pay->user) ({{ $pay->user->name }}) @endif
+                                            @if($pay->note) — {{ $pay->note }} @endif
                                             @if($pay->status === 'voided') <span class="no-underline">[ยกเลิกแล้ว]</span> @endif
                                         </span>
                                         @can('manage-expenses')

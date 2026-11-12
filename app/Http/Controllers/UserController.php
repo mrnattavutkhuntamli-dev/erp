@@ -143,6 +143,31 @@ class UserController extends Controller
         return User::role('admin')->where('is_active', true)->where('id', '!=', $user->id)->doesntExist();
     }
 
+    // 6b. รีเซ็ต 2FA ของพนักงาน (กรณีทำมือถือหาย/อ่านรหัสไม่ได้) — ผู้ใช้ต้องตั้งค่า 2FA ใหม่เอง
+    public function reset2fa(Request $request, User $user)
+    {
+        if (! $user->google2fa_enabled && empty($user->getRawOriginal('google2fa_secret'))) {
+            return redirect()->route('users.index')->with('error', 'บัญชีนี้ไม่ได้เปิดใช้ 2FA');
+        }
+
+        \Illuminate\Support\Facades\DB::transaction(function () use ($user) {
+            // ไม่ผ่าน mass-assignment/cast: เขียนค่าว่างตรง ๆ เพื่อให้ทำงานได้แม้ secret เดิมถอดรหัสไม่ได้
+            \Illuminate\Support\Facades\DB::table('users')->where('id', $user->id)->update([
+                'google2fa_enabled' => false,
+                'google2fa_secret'  => null,
+                'remember_token'    => \Illuminate\Support\Str::random(60),
+            ]);
+        });
+
+        // เคลียร์ session เดิมของผู้ใช้นั้น (ถ้าเป็นบัญชีตัวเอง คง session ปัจจุบันไว้)
+        \App\Support\Sessions::forgetFor(
+            $user->id,
+            $user->id === auth()->id() ? $request->session()->getId() : null
+        );
+
+        return redirect()->route('users.index')->with('success', 'รีเซ็ต 2FA ของ ' . $user->name . ' แล้ว (ผู้ใช้ต้องตั้งค่า 2FA ใหม่เองที่หน้าโปรไฟล์)');
+    }
+
     // 7. ลบพนักงาน
     public function destroy(User $user)
     {

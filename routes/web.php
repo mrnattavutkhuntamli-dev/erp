@@ -52,6 +52,7 @@ Route::middleware(['auth', '2fa'])->group(function () {
     // 2. หน้าจัดการผู้ใช้ (Admin)
     Route::middleware('permission:manage-users')->group(function () {
         Route::patch('users/{user}/toggle-active', [UserController::class, 'toggleActive'])->name('users.toggle-active');
+        Route::post('users/{user}/reset-2fa', [UserController::class, 'reset2fa'])->name('users.reset-2fa');
         Route::resource('users', UserController::class);
 
         Route::get('/settings', [SettingController::class, 'index'])->name('settings.index');

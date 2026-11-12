@@ -36,6 +36,7 @@ class StockAdjustmentController extends Controller
             'quantity' => 'required|integer|min:1|max:999999',
             'reason' => 'required|in:damaged,lost,stocktake,return,other',
             'note' => 'nullable|string',
+            'idempotency_key' => 'nullable|string|max:64',
         ]);
 
         // เหตุผลต้องสอดคล้องกับประเภท: ของเสีย/สูญหาย = ลด, รับคืน = เพิ่ม
@@ -48,6 +49,15 @@ class StockAdjustmentController extends Controller
 
         try {
             return DB::transaction(function () use ($validated) {
+                // กดซ้ำด้วย key เดิม → พาไปหน้ารายการ ไม่ปรับสต็อกซ้ำ
+                if (! empty($validated['idempotency_key'])) {
+                    $existing = StockAdjustment::where('idempotency_key', $validated['idempotency_key'])->first();
+                    if ($existing) {
+                        return redirect()->route('stock-adjustments.index')
+                            ->with('success', 'รายการปรับปรุงสต็อก ' . $existing->adj_no . ' ถูกบันทึกไปแล้ว');
+                    }
+                }
+
                 // ล็อกสินค้าเพื่อป้องกันการแก้ไขซ้อนกัน
                 $product = Product::lockForUpdate()->findOrFail($validated['product_id']);
 
@@ -73,6 +83,7 @@ class StockAdjustmentController extends Controller
                     'stock_after' => $newStock,
                     'reason' => $validated['reason'],
                     'note' => $validated['note'] ?? null,
+                    'idempotency_key' => $validated['idempotency_key'] ?? null,
                 ]);
 
                 $adjNo = 'ADJ-' . date('Ymd') . '-' . str_pad($adjustment->id, 6, '0', STR_PAD_LEFT);
@@ -86,6 +97,15 @@ class StockAdjustmentController extends Controller
             });
         } catch (\DomainException $e) {
             return back()->with('error', $e->getMessage())->withInput();
+        } catch (\Illuminate\Database\UniqueConstraintViolationException $e) {
+            // กดซ้ำพร้อมกัน: อีกคำขอบันทึกด้วย key เดียวกันไปแล้ว
+            if (! empty($validated['idempotency_key'])
+                && StockAdjustment::where('idempotency_key', $validated['idempotency_key'])->exists()) {
+                return redirect()->route('stock-adjustments.index')
+                    ->with('success', 'รายการนี้ถูกบันทึกไปแล้ว');
+            }
+            report($e);
+            return back()->with('error', 'เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง')->withInput();
         } catch (\Throwable $e) {
             report($e);
             return back()->with('error', 'เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง')->withInput();

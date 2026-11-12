@@ -22,17 +22,21 @@ class TwoFactorController extends Controller
             return view('profile.two-factor', ['qrCodeSvg' => null, 'user' => $user]);
         }
 
-        // ถ้าผู้ใช้ยังไม่มี secret ให้สร้างใหม่
-        if (empty($user->google2fa_secret)) {
-            $user->google2fa_secret = $google2fa->generateSecretKey();
-            $user->save();
+        // ถ้าผู้ใช้ยังไม่มี secret (หรือ secret เดิมถอดรหัสไม่ได้ เช่น APP_KEY เปลี่ยน) ให้สร้างใหม่
+        // (ยังไม่ได้เปิด 2FA จึงทับได้อย่างปลอดภัย)
+        if (empty($user->twoFactorSecretOrNull())) {
+            // เขียนตรงลงตาราง (เข้ารหัสแบบเดียวกับ cast 'encrypted') เพื่อไม่ต้องถอดรหัสค่าเดิมที่เสียอยู่ตอน save()
+            \Illuminate\Support\Facades\DB::table('users')->where('id', $user->id)->update([
+                'google2fa_secret' => \Illuminate\Support\Facades\Crypt::encryptString($google2fa->generateSecretKey()),
+            ]);
+            $user->refresh();
         }
 
         // สร้าง URL สำหรับ QR Code
         $qrCodeUrl = $google2fa->getQRCodeUrl(
             config('app.name'),
             $user->email,
-            $user->google2fa_secret
+            $user->twoFactorSecretOrNull()
         );
 
         // สร้าง SVG QR Code
@@ -57,6 +61,13 @@ class TwoFactorController extends Controller
         $google2fa = new Google2FA();
         $key       = '2fa-enable:' . $user->id . '|' . $request->ip();
 
+        // ยังไม่ได้เริ่มตั้งค่า (ไม่มี secret) หรือ secret อ่านไม่ได้ → พากลับไปสร้าง QR ใหม่ แทนการขึ้น 500
+        $secret = $user->twoFactorSecretOrNull();
+        if ($secret === null) {
+            return redirect()->route('two-factor.show')
+                ->withErrors(['otp' => 'ไม่พบข้อมูลการตั้งค่า 2FA กรุณาสแกน QR Code ใหม่แล้วลองอีกครั้ง']);
+        }
+
         // จำกัด 5 ครั้ง/นาที กันเดารหัส 6 หลัก
         if (RateLimiter::tooManyAttempts($key, 5)) {
             return back()->withErrors(['otp' => 'ลองผิดหลายครั้งเกินไป กรุณารอ ' . RateLimiter::availableIn($key) . ' วินาที']);
@@ -64,7 +75,7 @@ class TwoFactorController extends Controller
 
         // ตรวจสอบรหัส OTP (ปฏิเสธรหัสที่เคยใช้แล้ว เหมือนหน้ายืนยันตอนล็อกอิน)
         $ts = $google2fa->verifyKeyNewer(
-            $user->google2fa_secret, $request->otp, cache()->get('2fa-last-ts:' . $user->id)
+            $secret, $request->otp, cache()->get('2fa-last-ts:' . $user->id)
         );
 
         if ($ts !== false) {
@@ -97,6 +108,12 @@ class TwoFactorController extends Controller
             return back()->withErrors(['password' => 'รหัสผ่านไม่ถูกต้อง']);
         }
 
+        // secret อ่านไม่ได้ (เช่น APP_KEY เปลี่ยน) → ยืนยัน OTP ไม่ได้ ให้ผู้ดูแลระบบรีเซ็ต 2FA ให้แทน
+        $secret = $user->twoFactorSecretOrNull();
+        if ($secret === null) {
+            return back()->withErrors(['otp' => 'ข้อมูล 2FA ของบัญชีนี้อ่านไม่ได้ กรุณาติดต่อผู้ดูแลระบบเพื่อรีเซ็ต 2FA']);
+        }
+
         // ต้องยืนยัน OTP ด้วย (จำกัด 5 ครั้ง/นาที และปฏิเสธรหัสที่เคยใช้แล้ว)
         $google2fa = new Google2FA();
         $key       = '2fa-disable:' . $user->id . '|' . $request->ip();
@@ -106,7 +123,7 @@ class TwoFactorController extends Controller
         }
 
         $ts = $google2fa->verifyKeyNewer(
-            $user->google2fa_secret, $request->otp, cache()->get('2fa-last-ts:' . $user->id)
+            $secret, $request->otp, cache()->get('2fa-last-ts:' . $user->id)
         );
 
         if ($ts === false) {

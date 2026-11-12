@@ -99,9 +99,10 @@
                                         </a>
 
                                         <form action="{{ route('stock-documents.destroy', $doc->id) }}" method="POST"
-                                              onsubmit="return confirm('คุณแน่ใจหรือไม่ว่าต้องการยกเลิกเอกสารนี้? สต็อกจะถูกคืนกลับอัตโนมัติ');">
+                                              onsubmit="var r = prompt('ระบุเหตุผลที่ยกเลิกเอกสารนี้ (จำเป็น)'); if (!r || !r.trim()) { return false; } this.elements['void_reason'].value = r.trim(); return confirm('คุณแน่ใจหรือไม่ว่าต้องการยกเลิกเอกสารนี้? สต็อกจะถูกคืนกลับอัตโนมัติ');">
                                             @csrf
                                             @method('DELETE')
+                                            <input type="hidden" name="void_reason" value="">
                                             <button type="submit"
                                                     class="inline-flex items-center gap-1.5 rounded-lg border border-red-200 px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-red-600 hover:border-red-600 hover:text-white transition-colors">
                                                 <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9.75 9.75l4.5 4.5m0-4.5l-4.5 4.5M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>

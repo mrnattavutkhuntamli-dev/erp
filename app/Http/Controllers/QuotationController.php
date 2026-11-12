@@ -44,6 +44,7 @@ class QuotationController extends Controller
             'valid_until'        => 'required|date|after_or_equal:quote_date|after_or_equal:today',
             'discount'           => 'nullable|numeric|min:0|max:99999999.99|decimal:0,2',
             'note'               => 'nullable|string',
+            'idempotency_key'    => 'nullable|string|max:64',
             'items'              => 'required|array|min:1',
             'items.*.product_id' => 'required|exists:products,id|distinct',
             'items.*.quantity'   => 'required|integer|min:1|max:999999',
@@ -52,6 +53,15 @@ class QuotationController extends Controller
 
         try {
             return DB::transaction(function () use ($validated) {
+                // กดซ้ำด้วย key เดิม → พาไปใบเสนอราคาเดิม ไม่สร้างซ้ำ
+                if (! empty($validated['idempotency_key'])) {
+                    $existing = Quotation::where('idempotency_key', $validated['idempotency_key'])->first();
+                    if ($existing) {
+                        return redirect()->route('quotations.show', $existing->id)
+                            ->with('success', 'ใบเสนอราคา ' . $existing->quote_no . ' ถูกบันทึกไปแล้ว');
+                    }
+                }
+
                 // คำนวณยอดรวม (เป็นสตางค์ทั้งหมด กัน float ผิดพลาด)
                 $subtotalCents = collect($validated['items'])
                     ->sum(fn ($i) => Money::toCents($i['price']) * (int) $i['quantity']);
@@ -94,6 +104,7 @@ class QuotationController extends Controller
                     'total'       => Money::fromCents($totalCents),
                     'status'      => 'draft',
                     'note'        => $validated['note'] ?? null,
+                    'idempotency_key' => $validated['idempotency_key'] ?? null,
                 ]);
 
                 $quoteNo = 'QT-' . date('Ymd') . '-' . str_pad($quotation->id, 6, '0', STR_PAD_LEFT);
@@ -114,6 +125,16 @@ class QuotationController extends Controller
             });
         } catch (\DomainException $e) {
             return back()->with('error', $e->getMessage())->withInput();
+        } catch (\Illuminate\Database\UniqueConstraintViolationException $e) {
+            if (! empty($validated['idempotency_key'])) {
+                $existing = Quotation::where('idempotency_key', $validated['idempotency_key'])->first();
+                if ($existing) {
+                    return redirect()->route('quotations.show', $existing->id)
+                        ->with('success', 'ใบเสนอราคา ' . $existing->quote_no . ' ถูกบันทึกไปแล้ว');
+                }
+            }
+            report($e);
+            return back()->with('error', 'เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง')->withInput();
         } catch (\Throwable $e) {
             report($e);
             return back()->with('error', 'เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง')->withInput();

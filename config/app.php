@@ -78,7 +78,8 @@ return [
     |
     */
 
-    'locale' => env('APP_LOCALE', 'en'),
+    // ระบบเป็นภาษาไทย: ตั้งตายตัวเป็น 'th' (ไม่อ่านจาก .env) เพื่อให้ข้อความ validation/login เป็นไทยเสมอ
+    'locale' => 'th',
 
     'fallback_locale' => env('APP_FALLBACK_LOCALE', 'en'),
 

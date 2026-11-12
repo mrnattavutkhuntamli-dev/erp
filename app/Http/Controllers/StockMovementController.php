@@ -89,10 +89,11 @@ class StockMovementController extends Controller
         $docVoids = DB::table('stock_document_items as i')
             ->join('stock_documents as d', 'd.id', '=', 'i.stock_document_id')
             ->where('d.status', 'voided')
-            ->whereBetween('d.updated_at', [$startDate . ' 00:00:00', $endDate . ' 23:59:59'])
+            // เวลายกเลิกจริง (voided_at); เอกสารเก่าที่ยังไม่มีค่านี้ใช้ updated_at แทน
+            ->whereBetween(DB::raw('COALESCE(d.voided_at, d.updated_at)'), [$startDate . ' 00:00:00', $endDate . ' 23:59:59'])
             ->select([
-                DB::raw("DATE(d.updated_at) as date"),
-                'd.updated_at as created_at',
+                DB::raw("DATE(COALESCE(d.voided_at, d.updated_at)) as date"),
+                DB::raw('COALESCE(d.voided_at, d.updated_at) as created_at'),
                 DB::raw("CASE WHEN d.type='in' THEN 'out' ELSE 'in' END as type"),
                 DB::raw("'ยกเลิกใบรับ/ใบเบิก (ย้อนสต็อก)' as source"),
                 'd.doc_no as reference',

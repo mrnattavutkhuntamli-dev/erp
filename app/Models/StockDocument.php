@@ -19,7 +19,19 @@ class StockDocument extends Model
         'user_id',
         'customer_id',
         'purchase_order_id',
+        'voided_at',
+        'voided_by',
+        'void_reason',
     ];
+
+    protected $casts = [
+        'voided_at' => 'datetime',
+    ];
+
+    public function voidedBy()
+    {
+        return $this->belongsTo(User::class, 'voided_by');
+    }
     public function items()
     {
         return $this->hasMany(StockDocumentItem::class);

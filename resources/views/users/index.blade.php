@@ -90,6 +90,17 @@
                                         แก้ไข
                                     </a>
 
+                                    @if ($user->google2fa_enabled)
+                                        <form action="{{ route('users.reset-2fa', $user->id) }}" method="POST"
+                                              onsubmit="return confirm('รีเซ็ต 2FA ของ {{ e($user->name) }}? ผู้ใช้ต้องตั้งค่า 2FA ใหม่เอง');">
+                                            @csrf
+                                            <button type="submit"
+                                                    class="inline-flex items-center gap-1.5 rounded-lg border border-amber-300 px-3 py-1.5 text-sm font-medium text-amber-700 hover:bg-amber-50 transition-colors">
+                                                รีเซ็ต 2FA
+                                            </button>
+                                        </form>
+                                    @endif
+
                                     @if ($user->id !== auth()->id())
                                         <form action="{{ route('users.toggle-active', $user->id) }}" method="POST"
                                               onsubmit="return confirm('{{ $user->is_active ? 'ปิดใช้งานบัญชีนี้? ผู้ใช้จะเข้าสู่ระบบไม่ได้' : 'เปิดใช้งานบัญชีนี้อีกครั้ง?' }}');">
