@@ -1,5 +1,4 @@
 <?php
-
 namespace App\Http\Controllers;
 
 use App\Models\Brand;
@@ -7,12 +6,19 @@ use Illuminate\Http\Request;
 
 class BrandController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        $brands = Brand::latest()->get();
-        return view('brands.index', compact('brands'));
-    }
+        $search = trim((string) $request->query('search', ''));
 
+        $brands = Brand::query()
+            ->withCount('products')
+            ->when($search !== '', fn($q) => $q->where('name', 'like', "%{$search}%"))
+            ->latest()
+            ->paginate(15)
+            ->withQueryString();
+
+        return view('brands.index', compact('brands', 'search'));
+    }
     public function create()
     {
         return view('brands.create');

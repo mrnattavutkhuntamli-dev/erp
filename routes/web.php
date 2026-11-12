@@ -71,10 +71,12 @@ Route::middleware(['auth', '2fa'])->group(function () {
 
     // 3. หน้าจัดการข้อมูลหลัก (Admin, Stock)
     Route::middleware('permission:manage-master-data')->group(function () {
-        Route::resource('categories', CategoryController::class);
-        Route::resource('brands', BrandController::class);
+        Route::resource('categories', CategoryController::class)->except(['show', 'create', 'edit']);
+        // Route::resource('brands', BrandController::class);
+        Route::resource('brands', BrandController::class)->except(['show', 'create', 'edit']);
         Route::resource('car-brands', CarBrandController::class);
-        Route::resource('units', UnitController::class);
+        // Route::resource('units', UnitController::class);
+        Route::resource('units', UnitController::class)->except(['show', 'create', 'edit']);
         Route::post('/car-models', [CarBrandController::class, 'storeCarModel'])->name('car-models.store');
         Route::put('/car-models/{id}', [CarBrandController::class, 'updateCarModel'])->name('car-models.update');
         Route::delete('/car-models/{id}', [CarBrandController::class, 'destroyCarModel'])->name('car-models.destroy');
