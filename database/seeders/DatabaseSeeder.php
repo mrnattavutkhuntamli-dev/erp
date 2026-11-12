@@ -28,15 +28,23 @@ class DatabaseSeeder extends Seeder
             ['cashier',    'พนักงานขาย 1',        'cashier1@example.com'],
             ['cashier',    'พนักงานขาย 2',        'cashier2@example.com'],
             ['cashier',    'พนักงานขาย 3',        'cashier3@example.com'],
+            ['cashier',    'พนักงานขาย 4',        'cashier4@example.com'],
+            ['cashier',    'พนักงานขาย 5',        'cashier5@example.com'],
             ['stock',      'พนักงานคลังสต็อก 1',   'stock1@example.com'],
             ['stock',      'พนักงานคลังสต็อก 2',   'stock2@example.com'],
             ['stock',      'พนักงานคลังสต็อก 3',   'stock3@example.com'],
+            ['stock',      'พนักงานคลังสต็อก 4',   'stock4@example.com'],
+            ['stock',      'พนักงานคลังสต็อก 5',   'stock5@example.com'],
             ['accountant', 'พนักงานบัญชี 1',       'accountant1@example.com'],
             ['accountant', 'พนักงานบัญชี 2',       'accountant2@example.com'],
             ['accountant', 'พนักงานบัญชี 3',       'accountant3@example.com'],
+            ['accountant', 'พนักงานบัญชี 4',       'accountant4@example.com'],
+            ['accountant', 'พนักงานบัญชี 5',       'accountant5@example.com'],
             ['delivery',   'พนักงานขนส่ง 1',       'delivery1@example.com'],
             ['delivery',   'พนักงานขนส่ง 2',       'delivery2@example.com'],
             ['delivery',   'พนักงานขนส่ง 3',       'delivery3@example.com'],
+            ['delivery',   'พนักงานขนส่ง 4',       'delivery4@example.com'],
+            ['delivery',   'พนักงานขนส่ง 5',       'delivery5@example.com'],
         ];
 
         foreach ($accounts as [$role, $name, $email]) {

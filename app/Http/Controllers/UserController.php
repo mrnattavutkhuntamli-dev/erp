@@ -10,21 +10,32 @@ use Spatie\Permission\Models\Role;
 
 class UserController extends Controller
 {
-    // 1. แสดงรายชื่อพนักงานทั้งหมด
-    public function index()
+    // 1. แสดงรายชื่อพนักงานทั้งหมด (เพิ่ม/แก้ไขทำผ่าน drawer ในหน้านี้ จึงต้องส่ง $roles ไปด้วย)
+    public function index(Request $request)
     {
-        $users = User::with('roles')->latest()->paginate(15);
-        return view('users.index', compact('users'));
-    }
+        $search = trim((string) $request->query('q', ''));
 
-    // 2. หน้าเพิ่มพนักงานใหม่
-    public function create()
-    {
+        $users = User::with('roles')
+            ->when($search !== '', function ($query) use ($search) {
+                // escape % _ \ เพื่อไม่ให้ผู้ใช้พิมพ์ wildcard เอง
+                $like = '%' . addcslashes($search, '%_\\') . '%';
+
+                $query->where(function ($w) use ($like) {
+                    $w->where('name', 'like', $like)
+                      ->orWhere('email', 'like', $like)
+                      ->orWhereHas('roles', fn ($r) => $r->where('name', 'like', $like));
+                });
+            })
+            ->latest()
+            ->paginate(15)
+            ->withQueryString();
+
         $roles = Role::all();
-        return view('users.create', compact('roles'));
+
+        return view('users.index', compact('users', 'roles', 'search'));
     }
 
-    // 3. บันทึกพนักงานใหม่
+    // 2. บันทึกพนักงานใหม่
     public function store(Request $request)
     {
         $validated = $request->validate([
@@ -45,14 +56,7 @@ class UserController extends Controller
         return redirect()->route('users.index')->with('success', 'เพิ่มพนักงานสำเร็จ!');
     }
 
-    // 4. หน้าแก้ไขพนักงาน
-    public function edit(User $user)
-    {
-        $roles = Role::all();
-        return view('users.edit', compact('user', 'roles'));
-    }
-
-    // 5. อัปเดตข้อมูลพนักงาน
+    // 3. อัปเดตข้อมูลพนักงาน
     public function update(Request $request, User $user)
     {
         $validated = $request->validate([
@@ -104,7 +108,7 @@ class UserController extends Controller
         return redirect()->route('users.index')->with('success', 'อัปเดตข้อมูลพนักงานสำเร็จ!');
     }
 
-    // 6. เปิด/ปิดการใช้งานบัญชี (ใช้กับพนักงานที่ลาออกแต่มีประวัติบิล/กะ จึงลบไม่ได้)
+    // 4. เปิด/ปิดการใช้งานบัญชี (ใช้กับพนักงานที่ลาออกแต่มีประวัติบิล/กะ จึงลบไม่ได้)
     public function toggleActive(User $user)
     {
         if ($user->id === auth()->id()) {
@@ -143,7 +147,7 @@ class UserController extends Controller
         return User::role('admin')->where('is_active', true)->where('id', '!=', $user->id)->doesntExist();
     }
 
-    // 6b. รีเซ็ต 2FA ของพนักงาน (กรณีทำมือถือหาย/อ่านรหัสไม่ได้) — ผู้ใช้ต้องตั้งค่า 2FA ใหม่เอง
+    // 5. รีเซ็ต 2FA ของพนักงาน (กรณีทำมือถือหาย/อ่านรหัสไม่ได้) — ผู้ใช้ต้องตั้งค่า 2FA ใหม่เอง
     public function reset2fa(Request $request, User $user)
     {
         if (! $user->google2fa_enabled && empty($user->getRawOriginal('google2fa_secret'))) {
@@ -168,7 +172,7 @@ class UserController extends Controller
         return redirect()->route('users.index')->with('success', 'รีเซ็ต 2FA ของ ' . $user->name . ' แล้ว (ผู้ใช้ต้องตั้งค่า 2FA ใหม่เองที่หน้าโปรไฟล์)');
     }
 
-    // 7. ลบพนักงาน
+    // 6. ลบพนักงาน
     public function destroy(User $user)
     {
         // ป้องกันการลบตัวเอง

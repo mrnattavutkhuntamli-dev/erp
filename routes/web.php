@@ -53,8 +53,9 @@ Route::middleware(['auth', '2fa'])->group(function () {
     Route::middleware('permission:manage-users')->group(function () {
         Route::patch('users/{user}/toggle-active', [UserController::class, 'toggleActive'])->name('users.toggle-active');
         Route::post('users/{user}/reset-2fa', [UserController::class, 'reset2fa'])->name('users.reset-2fa');
-        Route::resource('users', UserController::class);
 
+        // Route::resource('users', UserController::class);
+        Route::resource('users', UserController::class)->except(['create', 'edit', 'show']);
         Route::get('/settings', [SettingController::class, 'index'])->name('settings.index');
         Route::put('/settings', [SettingController::class, 'update'])->name('settings.update');
         Route::post('/settings', [SettingController::class, 'store'])->name('settings.store');
